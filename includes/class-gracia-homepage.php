@@ -28,6 +28,10 @@ class Gracia_Homepage {
         global $post;
         if ( $post && has_shortcode( $post->post_content, 'gracia_homepage' ) ) {
             add_filter( 'body_class', [ $this, 'add_homepage_body_class' ] );
+            // Preload fonts with high priority so the browser starts downloading
+            // them immediately — before CSS is parsed — eliminating the flash of
+            // the wrong (thin) fallback font on first load.
+            add_action( 'wp_head', [ $this, 'preload_fonts' ], 1 );
         }
     }
 
@@ -38,6 +42,32 @@ class Gracia_Homepage {
     public function add_homepage_body_class( array $classes ): array {
         $classes[] = 'gracia-homepage-active';
         return $classes;
+    }
+
+    /**
+     * Output <link rel="preload"> tags for ClearSans font files.
+     *
+     * Runs at wp_head priority 1 (very early) so the browser fetches font
+     * files in parallel with stylesheet downloads — eliminating the flash of
+     * the thinner fallback font that occurs when fonts load too late.
+     *
+     * Only the three weights visible above-the-fold are preloaded to avoid
+     * unnecessary requests:
+     *   Regular (400) — body text and card content
+     *   Medium  (500) — slide title labels
+     *   Bold    (700) — burger menu items
+     */
+    public function preload_fonts(): void {
+        $fonts = [
+            'ClearSans-Regular.woff2',
+            'ClearSans-Medium.woff2',
+            'ClearSans-Bold.woff2',
+        ];
+
+        foreach ( $fonts as $font_file ) {
+            $url = esc_url( GRACIA_PLUGIN_URL . 'assets/fonts/' . $font_file );
+            echo '<link rel="preload" href="' . $url . '" as="font" type="font/woff2" crossorigin="anonymous">' . "\n";
+        }
     }
 
     /**

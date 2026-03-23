@@ -51,6 +51,15 @@ class Navigation {
 
         this.lang = this.detectLanguage();
 
+        // Bound touchmove handler used to block slider scroll on mobile while
+        // a card is open. Stored on the instance so the same reference is used
+        // for both addEventListener and removeEventListener.
+        this._blockSliderTouch = ( e ) => {
+            // Allow touch-scroll inside the card content scroll container.
+            if ( e.target.closest( '.gracia-slide-scroll' ) ) return;
+            e.preventDefault();
+        };
+
         this.init();
     }
 
@@ -93,6 +102,7 @@ class Navigation {
         this.initEscapeKey();
         this.initHashChangeListener();
         this.initMobileLandscapeWarning();
+        this.applyMobileLabelOverrides();
 
         // Handle direct URL visit after everything is ready
         const hash = window.location.hash.replace( '#', '' ).trim();
@@ -476,6 +486,14 @@ class Navigation {
         this.cardOpened  = true;
         this.targetSlide = divId;
 
+        // On iOS Safari, overflow:hidden on #gracia-slides does not stop
+        // in-progress touch scroll. Block touchmove at the event level so
+        // the background slides cannot scroll while a card is open.
+        // { passive: false } is required to allow preventDefault().
+        if ( this.slider ) {
+            this.slider.addEventListener( 'touchmove', this._blockSliderTouch, { passive: false } );
+        }
+
         this.cancelPendingHints();
         this.hideCurrentCursorHint();
 
@@ -493,6 +511,11 @@ class Navigation {
         this.body.classList.remove( 'card-open' );
         this.cardOpened  = false;
         this.targetSlide = null;
+
+        // Remove the touchmove block so normal slide scrolling resumes.
+        if ( this.slider ) {
+            this.slider.removeEventListener( 'touchmove', this._blockSliderTouch );
+        }
 
         this.cancelPendingHints();
         this.hideAllActiveTextHints();
@@ -727,6 +750,35 @@ class Navigation {
         return 'en';
     }
 
+    // =========================================================================
+    // Mobile label overrides
+    // =========================================================================
+
+    /**
+     * On narrow screens some slide titles are too long and overlap the logo.
+     * This method replaces the visible h2 text for specific slides on mobile
+     * while leaving data-title (used by the burger menu) unchanged.
+     */
+    applyMobileLabelOverrides() {
+        if ( window.innerWidth > 600 ) return;
+
+        // Keys are slide IDs (post slugs); values are the shorter mobile label.
+        // The burger menu reads data-title, NOT the h2, so it is unaffected.
+        const overrides = {
+            'organizadorxs': 'ORGANIZADXR',
+        };
+
+        this.slides.forEach( slide => {
+            const short = overrides[ slide.id ];
+            if ( ! short ) return;
+
+            const h2 = slide.querySelector( '.gracia-slide-label h2' );
+            if ( h2 ) {
+                h2.textContent = short;
+            }
+        } );
+    }
+
     isSafari() {
         const ua = navigator.userAgent.toLowerCase();
         const isOtherIos = /crios|fxios|edgios|opios/.test( ua );
@@ -751,6 +803,8 @@ class Navigation {
     // =========================================================================
 
     showSafariWarningIfNeeded() {
+        return; // Safari warning disabled
+
         if ( ! this.isSafari() ) return;
 
         const warningEl = document.getElementById( 'gracia-safari-warning' );
