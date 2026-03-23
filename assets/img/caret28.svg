@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="-3 -3 47.5 23" fill="none">
+  <!-- Caret with thinner 2.5px stroke for better font weight matching -->
+  <path d="M1.5 1.5 L20.75 15.5 L40 1.5"
+        stroke="#FFFFFF"
+        stroke-width="2.8"
+        stroke-linecap="round"
+        stroke-linejoin="miter"
+        vector-effect="non-scaling-stroke"/>
+</svg>
