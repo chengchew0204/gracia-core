@@ -325,44 +325,30 @@ class Gracia_Homepage {
     /**
      * Render the site logo as a fixed top-right image inside the slider.
      *
-     * Resolution order:
-     *  1. Logo set via Appearance → Customize → Site Identity (custom_logo theme mod)
-     *  2. Media Library attachment with filename containing "logo"
+     * Finds the most recent Media Library attachment whose filename contains "logo".
      */
     private function render_site_logo(): void {
-        $logo_src = '';
         $site_url = esc_url( home_url( '/' ) );
         $logo_alt = esc_attr( get_bloginfo( 'name' ) );
 
-        // Try Customize → Site Identity first.
-        $logo_id = get_theme_mod( 'custom_logo' );
-        if ( $logo_id ) {
-            $logo_src = wp_get_attachment_image_url( $logo_id, 'full' );
-        }
+        $results = get_posts( [
+            'post_type'      => 'attachment',
+            'post_status'    => 'inherit',
+            'posts_per_page' => 1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => [ [
+                'key'     => '_wp_attached_file',
+                'value'   => 'logo',
+                'compare' => 'LIKE',
+            ] ],
+        ] );
 
-        // Fallback: find an attachment whose filename starts with "logo".
-        if ( ! $logo_src ) {
-            $results = get_posts( [
-                'post_type'      => 'attachment',
-                'post_status'    => 'inherit',
-                'posts_per_page' => 1,
-                'orderby'        => 'date',
-                'order'          => 'DESC',
-                'meta_query'     => [ [
-                    'key'     => '_wp_attached_file',
-                    'value'   => 'logo',
-                    'compare' => 'LIKE',
-                ] ],
-            ] );
-
-            if ( ! empty( $results ) ) {
-                $logo_src = wp_get_attachment_url( $results[0]->ID );
-            }
-        }
-
-        if ( ! $logo_src ) {
+        if ( empty( $results ) ) {
             return;
         }
+
+        $logo_src = wp_get_attachment_url( $results[0]->ID );
         ?>
         <a href="<?php echo $site_url; ?>" class="gracia-site-logo" aria-label="<?php echo $logo_alt; ?>">
             <img src="<?php echo esc_url( $logo_src ); ?>" alt="<?php echo $logo_alt; ?>">
