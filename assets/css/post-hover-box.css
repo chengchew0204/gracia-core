@@ -1,0 +1,99 @@
+/* =============================================================================
+   gracia.la — Hover box panel styles
+   Loaded by gracia-core on individual post pages (is_single()).
+
+   Pairs with post-hover-box.js to display floating content panels
+   for span.hover-keyword triggers.
+   ============================================================================= */
+
+
+/* =============================================================================
+   1. Source layer — hidden; content is read by JS only
+   ============================================================================= */
+
+.hover-box-layer {
+    display: none !important;
+}
+
+
+/* =============================================================================
+   2. Floating panel
+   ============================================================================= */
+
+#gracia-hover-panel {
+    display: none;
+    position: fixed;
+    width: 280px;
+    max-width: calc(100vw - 16px);
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #fff;
+    color: #111;
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+    z-index: 9999;
+    padding: 14px 16px;
+    box-sizing: border-box;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    -webkit-overflow-scrolling: touch;
+}
+
+#gracia-hover-panel.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+
+/* =============================================================================
+   3. Inner content resets — white-box context overrides post dark theme
+   ============================================================================= */
+
+#gracia-hover-panel img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 8px;
+}
+
+#gracia-hover-panel video {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 8px;
+}
+
+#gracia-hover-panel a {
+    color: #0033ff;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+#gracia-hover-panel hr {
+    border: none;
+    border-top: 1px solid #ddd;
+    margin: 8px 0;
+    background: transparent;
+    height: auto;
+}
+
+#gracia-hover-panel center {
+    display: block;
+    text-align: center;
+}
+
+#gracia-hover-panel b,
+#gracia-hover-panel strong {
+    font-weight: 700;
+}
+
+#gracia-hover-panel font[color] {
+    color: inherit;
+}
+
+#gracia-hover-panel u {
+    text-decoration: underline;
+}

@@ -60,6 +60,14 @@ class Navigation {
             e.preventDefault();
         };
 
+        // Bound handler that blocks pinch-to-zoom (two-finger gestures).
+        // Stored on the instance so the reference is stable for removeEventListener.
+        this._preventPinchZoom = ( e ) => {
+            if ( e.touches.length > 1 ) {
+                e.preventDefault();
+            }
+        };
+
         this.init();
     }
 
@@ -103,6 +111,7 @@ class Navigation {
         this.initHashChangeListener();
         this.initMobileLandscapeWarning();
         this.applyMobileLabelOverrides();
+        this.initPinchZoomPrevention();
 
         // Handle direct URL visit after everything is ready
         const hash = window.location.hash.replace( '#', '' ).trim();
@@ -846,6 +855,14 @@ class Navigation {
     // =========================================================================
     // Mobile landscape warning
     // =========================================================================
+
+    initPinchZoomPrevention() {
+        // Block pinch-to-zoom on both touchstart and touchmove.
+        // { passive: false } is required — modern browsers default touch
+        // listeners to passive, which silently ignores preventDefault().
+        document.addEventListener( 'touchstart', this._preventPinchZoom, { passive: false } );
+        document.addEventListener( 'touchmove',  this._preventPinchZoom, { passive: false } );
+    }
 
     initMobileLandscapeWarning() {
         if ( ! this.isMobilePhone() ) return;

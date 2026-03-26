@@ -44,12 +44,27 @@ class Gracia_Core {
     }
 
     public function enqueue_frontend_assets(): void {
-        if ( is_single() ) {
+        if ( is_singular() ) {
             wp_enqueue_style(
                 'gracia-text-post',
                 GRACIA_PLUGIN_URL . 'assets/css/text-based-post.css',
                 [],
                 GRACIA_VERSION
+            );
+
+            wp_enqueue_style(
+                'gracia-hover-box',
+                GRACIA_PLUGIN_URL . 'assets/css/post-hover-box.css',
+                [ 'gracia-text-post' ],
+                GRACIA_VERSION
+            );
+
+            wp_enqueue_script(
+                'gracia-hover-box',
+                GRACIA_PLUGIN_URL . 'assets/js/post-hover-box.js',
+                [],
+                GRACIA_VERSION,
+                true
             );
         }
     }
