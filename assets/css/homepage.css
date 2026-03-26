@@ -337,9 +337,25 @@ body.card-open #gracia-slides {
     animation: gracia-fade-in 0.5s linear;
 }
 
+/*
+ * Keep content visible during close and play fade-out.
+ * JS adds .closing, waits for the animation, then removes .opened + .closing.
+ * pointer-events:none prevents clicks from re-triggering while fading.
+ */
+.gracia-slide.closing .gracia-card-content {
+    display: block !important;
+    animation: gracia-fade-out 0.2s linear forwards;
+    pointer-events: none;
+}
+
 @keyframes gracia-fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }
+}
+
+@keyframes gracia-fade-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 
 /* Tap areas — invisible hit zones to close the card.

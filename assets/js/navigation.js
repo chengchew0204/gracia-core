@@ -501,24 +501,47 @@ class Navigation {
     }
 
     closeCards() {
-        this.slides.forEach( slide => {
-            if ( slide.classList.contains( 'opened' ) ) {
-                slide.classList.remove( 'opened' );
-                slide.classList.add( 'closed' );
-            }
-        } );
-
-        this.body.classList.remove( 'card-open' );
+        // Mark logical state closed immediately so subsequent taps are not blocked.
         this.cardOpened  = false;
         this.targetSlide = null;
 
-        // Remove the touchmove block so normal slide scrolling resumes.
         if ( this.slider ) {
             this.slider.removeEventListener( 'touchmove', this._blockSliderTouch );
         }
 
         this.cancelPendingHints();
         this.hideAllActiveTextHints();
+
+        /*
+         * Two-phase close:
+         *   Phase 1 — add .closing to play CSS fade-out (gracia-fade-out 0.2s).
+         *             body.card-open stays set so #gracia-slides remains
+         *             overflow:hidden; this prevents the outer slider and inner
+         *             card scroll from fighting each other during the transition.
+         *   Phase 2 — after the animation completes, remove .opened + .closing,
+         *             add .closed, and finally release the body.card-open lock.
+         *
+         * FADE_OUT_MS must match the gracia-fade-out duration in homepage.css.
+         */
+        const FADE_OUT_MS = 200;
+        let anyClosing = false;
+
+        this.slides.forEach( slide => {
+            if ( slide.classList.contains( 'opened' ) ) {
+                anyClosing = true;
+                slide.classList.add( 'closing' );
+                setTimeout( () => {
+                    slide.classList.remove( 'opened', 'closing' );
+                    slide.classList.add( 'closed' );
+                    this.body.classList.remove( 'card-open' );
+                }, FADE_OUT_MS );
+            }
+        } );
+
+        // Edge case: closeCards() called when no slide was open.
+        if ( !anyClosing ) {
+            this.body.classList.remove( 'card-open' );
+        }
     }
 
     // =========================================================================
