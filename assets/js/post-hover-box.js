@@ -22,6 +22,18 @@ class PostHoverBox {
 
         this.GAP = 8;
 
+        // Scroll-lock state (mobile only)
+        this._scrollLocked = false;
+        this._savedScrollY = 0;
+
+        // Bound touchmove handler — stored on instance so the same reference
+        // is used for both addEventListener and removeEventListener.
+        this._boundBlockTouchMove = ( e ) => {
+            // Allow the panel's own internal scroll to work.
+            if ( this.panel && this.panel.contains( e.target ) ) return;
+            e.preventDefault();
+        };
+
         this.init();
     }
 
@@ -155,6 +167,10 @@ class PostHoverBox {
         this.panel.style.opacity    = '';
         this.panel.classList.add( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'false' );
+
+        if ( this.isTouch ) {
+            this._lockScroll();
+        }
     }
 
     _hide() {
@@ -162,6 +178,10 @@ class PostHoverBox {
         this.panel.classList.remove( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'true' );
         this.activeTrigger = null;
+
+        if ( this.isTouch ) {
+            this._unlockScroll();
+        }
     }
 
     _scheduleHide() {
@@ -218,6 +238,44 @@ class PostHoverBox {
 
         this.panel.style.left = `${ Math.round( left ) }px`;
         this.panel.style.top  = `${ Math.round( top ) }px`;
+    }
+
+    // =========================================================================
+    // Scroll lock (mobile only)
+    // =========================================================================
+
+    _lockScroll() {
+        if ( this._scrollLocked ) return;
+
+        // Step 1 — body-fix pattern: prevents the page from jumping visually
+        // when position:fixed is applied. iOS Safari requires position:fixed
+        // on body for overflow:hidden to have any effect.
+        this._savedScrollY = window.scrollY;
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top      = `-${ this._savedScrollY }px`;
+        document.body.style.width    = '100%';
+
+        // Step 2 — block touchmove at the event level. This is the only
+        // reliable way to prevent native scroll on iOS Safari. { passive: false }
+        // is required — without it the browser ignores preventDefault().
+        // The handler allows touchmove inside the panel itself so its internal
+        // overflow-y scroll still works.
+        document.addEventListener( 'touchmove', this._boundBlockTouchMove, { passive: false } );
+
+        this._scrollLocked = true;
+    }
+
+    _unlockScroll() {
+        if ( ! this._scrollLocked ) return;
+
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top      = '';
+        document.body.style.width    = '';
+        document.removeEventListener( 'touchmove', this._boundBlockTouchMove );
+        window.scrollTo( 0, this._savedScrollY );
+        this._scrollLocked = false;
     }
 
     // =========================================================================
