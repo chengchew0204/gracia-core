@@ -327,7 +327,8 @@ body.card-open #gracia-slides {
 .gracia-card-content {
     display: none;
     color: rgba(245, 245, 245, 0.9);
-    padding: 50px 24px 80px;
+    /* 80px top: clears the slide label (bottom edge ~53px) with breathing room */
+    padding: 80px 24px 80px;
     position: relative;
 }
 
@@ -399,7 +400,7 @@ body.card-open #gracia-slides {
     /* Use !important on font properties to prevent Blocksy's global
        body { font-weight: 300 } from overriding these on mobile. */
     font-family: 'ClearSans', Helvetica, sans-serif !important;
-    color: rgba(245, 245, 245, 0.85);
+    color: rgba(245, 245, 245, 0.9);
     font-weight: 500 !important;
     font-size: 22px !important;
     font-stretch: 80% !important;
@@ -569,26 +570,200 @@ body.card-open #gracia-slides {
 }
 
 /* -----------------------------------------------------------------------------
-   9. Responsive
+   10. Card content typography
+   Matches camp.mx: .card-content and .card styles in mxcamp_style-v3_0.css.
+   All rules are scoped to .gracia-card-content so they do not leak to other
+   page elements.
    ----------------------------------------------------------------------------- */
 
-/* On screens narrower than the card's max-width (968px), the card fills the
-   full viewport width. The logo (100px + 20px margin = 120px from right edge)
-   can overlap the content — increase right padding to clear it. */
-@media (max-width: 968px) {
-    .gracia-card-content {
-        padding-right: 130px;
+/* Font weight: camp.mx sets font-weight:500 on .card-content */
+.gracia-card-content,
+.gracia-card-content p,
+.gracia-card-content div {
+    font-weight: 500;
+}
+
+/*
+ * Post h1 (page/section title — first element in the post HTML).
+ * Matches camp.mx's .card .slide-title { font-size: 33px }.
+ */
+.gracia-card-content h1 {
+    color: rgba(245, 245, 245, 0.9);
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 33px;
+    font-weight: 500;
+    font-stretch: 70%;
+    line-height: 1.15;
+    margin: 0 0 36px 0;
+}
+
+/*
+ * Post h2 (major section headers e.g. "¿ES CAMP PARA MÍ?", "ESSENTIAL INFO")
+ * Plain light-colored heading — no white background chip.
+ */
+.gracia-card-content h2 {
+    background-color: transparent;
+    color: rgba(245, 245, 245, 0.9);
+    display: block;
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 26px;
+    font-weight: 500;
+    font-stretch: 70%;
+    line-height: 1.2;
+    margin-top: 42px;
+    margin-bottom: 20px;
+    padding: 0;
+    white-space: normal;
+}
+
+/* Suppress the slide-label caret on content h2s — caret is only for .gracia-slide-label h2 */
+.gracia-card-content h2::after {
+    content: none !important;
+}
+
+/* Post h3 (subsection headers e.g. "Expectativas informadas", "Desnudez") */
+.gracia-card-content h3 {
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 500;
+    font-stretch: 70%;
+    color: rgba(245, 245, 245, 0.9);
+    margin-top: 30px;
+    margin-bottom: 22px;
+}
+
+/* Post h4 */
+.gracia-card-content h4 {
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 500;
+    font-stretch: 70%;
+    letter-spacing: 0.22px;
+    line-height: 32px;
+    margin-bottom: 32px;
+    margin-top: 32px;
+    color: rgba(245, 245, 245, 0.9);
+}
+
+/* Unordered lists — custom bullet matching camp.mx .card ul */
+.gracia-card-content ul {
+    padding-left: 20px;
+    list-style-type: none !important;
+}
+
+.gracia-card-content ul li::before {
+    font-size: 1em;
+    content: "\2022";
+    margin-left: -20px;
+    margin-right: 13px;
+}
+
+.gracia-card-content ul li {
+    margin: 12px 0;
+}
+
+/* Links */
+.gracia-card-content a {
+    color: rgba(245, 245, 245, 0.9);
+    font-weight: 500;
+}
+
+/* Horizontal rules — transparent spacers (height: 8px, no visible line) */
+.gracia-card-content hr {
+    background-color: transparent !important;
+    border: none;
+    height: 8px !important;
+    margin: 0;
+}
+
+/*
+ * Hover-keyword spans — future tooltip triggers.
+ * Styled as light-background chips matching camp.mx .card-content .hover.
+ */
+.gracia-card-content .hover-keyword {
+    display: inline-block;
+    background: rgba(245, 245, 245, 0.9);
+    border-radius: 0;
+    color: black;
+    height: 1.2em;
+    line-height: 0.7;
+    padding: 3px;
+    vertical-align: baseline;
+    cursor: pointer;
+    font-weight: 500;
+    z-index: 2;
+}
+
+/*
+ * When the card is open, add generous bottom padding so the user can scroll
+ * the last line of content above the fold. Camp.mx uses 300px.
+ */
+.gracia-slide.opened .gracia-card-content {
+    padding-bottom: 300px !important;
+}
+
+/* Responsive heading sizes — matches camp.mx breakpoints */
+@media screen and (max-width: 1200px) {
+    .gracia-card-content h1 {
+        font-size: 24px;
+    }
+
+    .gracia-card-content h2 {
+        font-size: 22px;
+    }
+
+    .gracia-card-content h3,
+    .gracia-card-content h4 {
+        font-size: 22px;
     }
 }
 
-/* On narrow phones: also increase top padding to clear the fixed title label
-   (position: fixed; top: 21px; height ~32px → bottom edge ~53px).
-   Left padding stays modest since the burger icon has its own z-index. */
+@media screen and (max-width: 600px) {
+    .gracia-card-content h1 {
+        font-size: 27px;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   9. Responsive
+   ----------------------------------------------------------------------------- */
+
+/*
+ * Logo avoidance — float-based exclusion zone at the top-right of card content.
+ *
+ * The site logo is position:fixed at top-right. Applying a blanket padding-right
+ * on the whole content div squishes every line, including those well below the
+ * logo. Instead, a ::before pseudo-element floated right creates an exclusion
+ * only where the logo actually overlaps the content, letting everything below
+ * flow at full width naturally.
+ *
+ * Geometry (when the card fills the viewport width, i.e. < 968px):
+ *   Logo zone from right edge  = margin-right(20) + logo-width(100) = 120px
+ *   Content right padding                                            =  24px
+ *   Float width needed (overlap into content area)                  =  96px
+ *
+ *   Content top (padding-top: 80px) to logo bottom (~140px from top) = ~60px
+ *   Float height with safety margin                                  =  80px
+ */
+@media (max-width: 968px) {
+    .gracia-card-content::before {
+        content: '';
+        float: right;
+        width: 96px;
+        height: 80px;
+        pointer-events: none;
+    }
+}
+
+/* On narrow phones the logo shrinks to 80px, so the float can be narrower. */
 @media (max-width: 600px) {
     .gracia-card-content {
-        padding-top: 70px;
-        padding-right: 130px;
+        padding-top: 80px;
         padding-bottom: 60px;
         padding-left: 20px;
+    }
+
+    .gracia-card-content::before {
+        width: 76px; /* logo(80) + margin(20) - padding(24) = 76px */
     }
 }

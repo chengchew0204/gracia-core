@@ -1,0 +1,253 @@
+/* =============================================================================
+   gracia.la — Text-based post page styles
+   Loaded by gracia-core on individual post pages (is_single()).
+
+   Goal: match camp.mx's single-post visual — full-viewport featured image
+   as a fixed background, dark overlay, and light-on-dark typography that
+   mirrors the card-content styles used on the homepage slider.
+   ============================================================================= */
+
+
+/* =============================================================================
+   1. Background — featured image as fixed full-viewport background
+   Mirrors camp.mx WP-Additional.css: .ct-featured-image { position:fixed; ... }
+   ============================================================================= */
+
+body.single-post .ct-featured-image {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh !important;
+    width: 100vw !important;
+    z-index: -2;
+    opacity: 0.4;
+    max-width: unset !important;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+body.single-post .ct-featured-image img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: unset !important;
+    object-fit: cover;
+    object-position: center center;
+    display: block;
+}
+
+/* Dark overlay — same tint used by camp.mx for opened slide cards */
+body.single-post #main-container::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-color: rgba(32, 16, 16, 0.55);
+    pointer-events: none;
+    z-index: -1;
+}
+
+
+/* =============================================================================
+   2. Page layout
+   ============================================================================= */
+
+body.single-post {
+    background-color: rgba(32, 16, 16, 0.9);
+    min-height: 100dvh;
+}
+
+body.single-post #main-container {
+    position: relative;
+    min-height: 100dvh;
+}
+
+/* Push content below the fixed header (burger icon sits at top-left ~70px) */
+body.single-post .ct-container-full,
+body.single-post article {
+    padding-top: 80px;
+    padding-bottom: 120px;
+}
+
+/* Constrain content width to match homepage card max-width */
+body.single-post .entry-content {
+    max-width: 968px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 24px;
+    padding-right: 24px;
+}
+
+/*
+ * Hide Blocksy's .entry-header (which repeats the post title as an h1
+ * with a hero section). The title already appears as the first h1 inside the
+ * post body HTML from gracia-la/posts/.
+ */
+body.single-post .entry-header,
+body.single-post .hero-section {
+    display: none !important;
+}
+
+
+/* =============================================================================
+   3. Typography — mirrors .gracia-card-content rules from homepage.css
+   ============================================================================= */
+
+body.single-post .entry-content,
+body.single-post .entry-content p,
+body.single-post .entry-content div {
+    color: rgba(245, 245, 245, 0.9);
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.3em;
+}
+
+/* Post h1 (page/section title — first element in the post HTML) */
+body.single-post .entry-content h1 {
+    color: rgba(245, 245, 245, 0.9);
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 33px;
+    font-weight: 500;
+    font-stretch: 70%;
+    line-height: 1.15;
+    margin: 0 0 36px 0;
+}
+
+/* Section h2s — plain light-colored heading, no white background */
+body.single-post .entry-content h2 {
+    background-color: transparent;
+    color: rgba(245, 245, 245, 0.9);
+    display: block;
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 26px;
+    font-weight: 500;
+    font-stretch: 70%;
+    line-height: 1.2;
+    margin-top: 42px;
+    margin-bottom: 20px;
+    padding: 0;
+    white-space: normal;
+}
+
+/* Subsection h3s */
+body.single-post .entry-content h3 {
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 500;
+    font-stretch: 70%;
+    color: rgba(245, 245, 245, 0.85);
+    margin-top: 30px;
+    margin-bottom: 22px;
+}
+
+/* h4 */
+body.single-post .entry-content h4 {
+    font-family: 'ClearSans', Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 500;
+    font-stretch: 70%;
+    letter-spacing: 0.22px;
+    line-height: 32px;
+    margin-bottom: 32px;
+    margin-top: 32px;
+    color: rgba(245, 245, 245, 0.85);
+}
+
+/* Unordered lists — custom bullet matching camp.mx .card ul */
+body.single-post .entry-content ul {
+    padding-left: 20px;
+    list-style-type: none !important;
+}
+
+body.single-post .entry-content ul li::before {
+    font-size: 1em;
+    content: "\2022";
+    margin-left: -20px;
+    margin-right: 13px;
+}
+
+body.single-post .entry-content ul li {
+    margin: 12px 0;
+}
+
+/* Links */
+body.single-post .entry-content a {
+    color: rgba(245, 245, 245, 0.9);
+    font-weight: 500;
+}
+
+/* Horizontal rules — transparent spacers */
+body.single-post .entry-content hr {
+    background-color: transparent !important;
+    border: none;
+    height: 8px !important;
+    margin: 0;
+}
+
+/*
+ * Hover-keyword spans — future tooltip triggers.
+ * Light-background chips matching camp.mx .card-content .hover.
+ */
+body.single-post .entry-content .hover-keyword {
+    display: inline-block;
+    background: rgba(245, 245, 245, 0.9);
+    border-radius: 0;
+    color: black;
+    height: 1.2em;
+    line-height: 0.7;
+    padding: 3px;
+    vertical-align: baseline;
+    cursor: pointer;
+    font-weight: 500;
+    z-index: 2;
+}
+
+
+/* =============================================================================
+   4. Responsive
+   ============================================================================= */
+
+@media screen and (max-width: 1200px) {
+    body.single-post .entry-content h1 {
+        font-size: 24px;
+    }
+
+    body.single-post .entry-content h2 {
+        font-size: 22px;
+    }
+
+    body.single-post .entry-content h3,
+    body.single-post .entry-content h4 {
+        font-size: 22px;
+    }
+}
+
+@media screen and (max-width: 600px) {
+    body.single-post .entry-content h1 {
+        font-size: 27px;
+    }
+}
+
+/* Logo avoidance — float-based exclusion (see homepage.css section 9 for geometry notes) */
+@media (max-width: 968px) {
+    body.single-post .entry-content::before {
+        content: '';
+        float: right;
+        width: 96px;
+        height: 80px;
+        pointer-events: none;
+    }
+}
+
+@media (max-width: 600px) {
+    body.single-post .entry-content {
+        padding-top: 20px;
+        padding-bottom: 60px;
+        padding-left: 20px;
+        padding-right: 24px;
+    }
+
+    body.single-post .entry-content::before {
+        width: 76px;
+    }
+}

@@ -44,12 +44,13 @@ class Gracia_Core {
     }
 
     public function enqueue_frontend_assets(): void {
-        // Enqueue frontend CSS and JS here as needed.
-        // wp_enqueue_style(
-        //     'gracia-core',
-        //     GRACIA_PLUGIN_URL . 'assets/css/main.css',
-        //     [],
-        //     GRACIA_VERSION
-        // );
+        if ( is_single() ) {
+            wp_enqueue_style(
+                'gracia-text-post',
+                GRACIA_PLUGIN_URL . 'assets/css/text-based-post.css',
+                [],
+                GRACIA_VERSION
+            );
+        }
     }
 }
