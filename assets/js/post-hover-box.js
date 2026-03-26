@@ -22,14 +22,21 @@ class PostHoverBox {
 
         this.GAP = 8;
 
-        // Scroll-lock state (mobile only)
+        // Scroll-lock state
         this._scrollLocked = false;
         this._savedScrollY = 0;
 
-        // Bound touchmove handler — stored on instance so the same reference
-        // is used for both addEventListener and removeEventListener.
+        // Bound handlers — stored on instance so the same reference is used
+        // for both addEventListener and removeEventListener.
+
+        // Blocks mouse-wheel / trackpad scroll on desktop.
+        this._boundBlockWheel = ( e ) => {
+            if ( this.panel && this.panel.contains( e.target ) ) return;
+            e.preventDefault();
+        };
+
+        // Blocks native touch scroll on mobile (iOS Safari requires this).
         this._boundBlockTouchMove = ( e ) => {
-            // Allow the panel's own internal scroll to work.
             if ( this.panel && this.panel.contains( e.target ) ) return;
             e.preventDefault();
         };
@@ -168,9 +175,7 @@ class PostHoverBox {
         this.panel.classList.add( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'false' );
 
-        if ( this.isTouch ) {
-            this._lockScroll();
-        }
+        this._lockScroll();
     }
 
     _hide() {
@@ -179,9 +184,7 @@ class PostHoverBox {
         this.panel.setAttribute( 'aria-hidden', 'true' );
         this.activeTrigger = null;
 
-        if ( this.isTouch ) {
-            this._unlockScroll();
-        }
+        this._unlockScroll();
     }
 
     _scheduleHide() {
@@ -241,26 +244,25 @@ class PostHoverBox {
     }
 
     // =========================================================================
-    // Scroll lock (mobile only)
+    // Scroll lock (desktop + mobile)
     // =========================================================================
 
     _lockScroll() {
         if ( this._scrollLocked ) return;
 
-        // Step 1 — body-fix pattern: prevents the page from jumping visually
-        // when position:fixed is applied. iOS Safari requires position:fixed
-        // on body for overflow:hidden to have any effect.
+        // Body-fix: iOS Safari ignores overflow:hidden on body without
+        // position:fixed. Also visually freezes the page in place.
         this._savedScrollY = window.scrollY;
         document.body.style.overflow = 'hidden';
         document.body.style.position = 'fixed';
         document.body.style.top      = `-${ this._savedScrollY }px`;
         document.body.style.width    = '100%';
 
-        // Step 2 — block touchmove at the event level. This is the only
-        // reliable way to prevent native scroll on iOS Safari. { passive: false }
-        // is required — without it the browser ignores preventDefault().
-        // The handler allows touchmove inside the panel itself so its internal
-        // overflow-y scroll still works.
+        // Block wheel events (desktop mouse / trackpad scroll).
+        // { passive: false } allows preventDefault() to cancel the scroll.
+        document.addEventListener( 'wheel', this._boundBlockWheel, { passive: false } );
+
+        // Block touch scroll (mobile / iOS Safari).
         document.addEventListener( 'touchmove', this._boundBlockTouchMove, { passive: false } );
 
         this._scrollLocked = true;
@@ -273,6 +275,7 @@ class PostHoverBox {
         document.body.style.position = '';
         document.body.style.top      = '';
         document.body.style.width    = '';
+        document.removeEventListener( 'wheel', this._boundBlockWheel );
         document.removeEventListener( 'touchmove', this._boundBlockTouchMove );
         window.scrollTo( 0, this._savedScrollY );
         this._scrollLocked = false;
