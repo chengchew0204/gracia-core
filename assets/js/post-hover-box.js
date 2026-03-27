@@ -144,8 +144,16 @@ class PostHoverBox {
     _bindGlobalDismiss() {
         document.addEventListener( 'click', ( e ) => {
             if ( ! this.activeTrigger ) return;
-            if ( this.panel.contains( e.target ) ) return;
             if ( e.target.closest( 'span.hover-keyword' ) ) return;
+
+            // Inside the panel: let interactive elements (links, buttons, inputs)
+            // behave normally. Tapping anything else closes the panel.
+            if ( this.panel.contains( e.target ) ) {
+                if ( e.target.closest( 'a, button, input, select, textarea, video, [onclick]' ) ) return;
+                this._hide();
+                return;
+            }
+
             this._hide();
         } );
     }
