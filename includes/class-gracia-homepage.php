@@ -129,7 +129,7 @@ class Gracia_Homepage {
 
         ob_start();
         ?>
-        <div class="gracia-slides" id="gracia-slides">
+        <div class="gracia-slides" id="gracia-slides" style="overflow:hidden;touch-action:none">
 
             <?php $this->render_loading_spinner(); ?>
             <?php $this->render_site_logo(); ?>

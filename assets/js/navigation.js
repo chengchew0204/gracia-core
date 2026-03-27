@@ -118,12 +118,15 @@ class Navigation {
             this.hideSpinner();
             this.completeInitialization();
 
-            // Release the loading lock. #gracia-slides starts with
-            // overflow:hidden in CSS (no .gracia-ready), so the browser
-            // cannot scroll or snap slides before JS is ready. Adding
-            // .gracia-ready enables overflow-y:scroll + scroll-snap-type,
-            // making the slider interactive only after every handler is bound.
+            // Release the loading lock. PHP renders #gracia-slides with
+            // inline style="overflow:hidden;touch-action:none" so the slider
+            // is inert from the very first painted frame — even before any
+            // external CSS file has loaded. Clear those inline overrides and
+            // add .gracia-ready, which enables overflow-y:scroll and
+            // scroll-snap-type in the stylesheet.
             if ( this.slider ) {
+                this.slider.style.overflow    = '';
+                this.slider.style.touchAction = '';
                 this.slider.classList.add( 'gracia-ready' );
             }
         } );
