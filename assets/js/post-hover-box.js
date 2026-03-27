@@ -25,9 +25,6 @@ class PostHoverBox {
         // Scroll-lock state
         this._scrollLocked = false;
 
-        // Timer used to reveal the panel after images settle (see _show)
-        this._revealTimer = null;
-
         // Bound handlers — stored on instance so the same reference is used
         // for both addEventListener and removeEventListener.
 
@@ -79,15 +76,31 @@ class PostHoverBox {
         this.panel.setAttribute( 'aria-hidden', 'true' );
         document.body.appendChild( this.panel );
 
-        // Stop touchmove and wheel events from bubbling out of the panel so
-        // the document-level scroll-block handlers never see them. This lets
-        // the panel scroll its own overflow content naturally, while everything
-        // outside the panel remains locked. stopPropagation() has no effect on
-        // whether the browser scrolls the element — it only prevents the event
-        // from reaching ancestors. The panel listeners are passive (touchmove)
-        // or default (wheel) so they never suppress the panel's own scroll.
-        this.panel.addEventListener( 'touchmove', ( e ) => { e.stopPropagation(); }, { passive: true } );
-        this.panel.addEventListener( 'wheel',     ( e ) => { e.stopPropagation(); } );
+        // Panel-level scroll handling.
+        //
+        // Two cases:
+        //   a) Panel has overflow (content taller than max-height):
+        //      stopPropagation only — the document-level preventDefault handler
+        //      never fires, so the browser handles the gesture natively and
+        //      scrolls the panel via overflow-y: auto.
+        //   b) Panel has no overflow (content fits):
+        //      preventDefault — there is nothing to scroll inside the panel,
+        //      so without preventDefault the browser falls through to the page
+        //      and scrolls it. We block that entirely.
+        //
+        // { passive: false } is required on touchmove so preventDefault() is
+        // allowed when the panel has no overflow. overscroll-behavior: contain
+        // (set in CSS) prevents scroll-chaining when the user reaches the
+        // panel's scroll boundary.
+        const panelScrollHandler = ( e ) => {
+            if ( this.panel.scrollHeight > this.panel.clientHeight ) {
+                e.stopPropagation();
+            } else {
+                e.preventDefault();
+            }
+        };
+        this.panel.addEventListener( 'touchmove', panelScrollHandler, { passive: false } );
+        this.panel.addEventListener( 'wheel',     panelScrollHandler );
     }
 
     // =========================================================================
@@ -179,70 +192,47 @@ class PostHoverBox {
 
         this.activeTrigger = trigger;
 
-        // Keep panel invisible while we wait for images to load.
-        // If we position before images are loaded their height is zero,
-        // causing the panel to appear at the keyword instead of above/below it.
         this.panel.classList.remove( 'is-visible' );
         this.panel.style.visibility = 'hidden';
         this.panel.style.display    = 'block';
         this.panel.style.opacity    = '0';
 
-        // Find images that are still loading (src set but not yet complete).
+        // Force layout so getBoundingClientRect is accurate.
+        this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
+
         const pending = Array.from( this.panel.querySelectorAll( 'img[src]' ) )
             .filter( img => ! img.complete );
 
         if ( pending.length === 0 ) {
-            // All content is ready — position and reveal immediately.
-            this._revealPanel( trigger );
+            // All content ready — use full smart positioning.
+            this._position( trigger );
         } else {
-            // Wait for every image to settle (load or error).
-            // A 1500ms timeout ensures we never wait forever on a slow image.
-            let remaining = pending.length;
-            const onSettle = () => {
-                remaining--;
-                if ( remaining <= 0 ) {
-                    this._revealPanel( trigger );
-                }
-            };
+            // Images still loading: show below the trigger so the panel can
+            // only grow downward (away from the keyword) as images load.
+            // The panel is revealed immediately so the user gets visual
+            // feedback right away and the scroll lock feels responsive.
+            this._positionBelow( trigger );
 
-            this._revealTimer = setTimeout( () => this._revealPanel( trigger ), 1500 );
+            // After each image loads, reposition with the correct final height.
             pending.forEach( img => {
-                img.addEventListener( 'load',  onSettle, { once: true } );
-                img.addEventListener( 'error', onSettle, { once: true } );
+                img.addEventListener( 'load', () => {
+                    if ( this.activeTrigger !== trigger ) return;
+                    this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
+                    this._position( trigger );
+                }, { once: true } );
             } );
         }
-
-        this._lockScroll();
-    }
-
-    _revealPanel( trigger ) {
-        if ( this._revealTimer ) {
-            clearTimeout( this._revealTimer );
-            this._revealTimer = null;
-        }
-
-        // Abort if the user dismissed the panel while images were loading.
-        if ( this.activeTrigger !== trigger ) return;
-
-        // Force reflow so getBoundingClientRect returns final image dimensions.
-        this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
-
-        this._position( trigger );
 
         this.panel.style.visibility = '';
         this.panel.style.opacity    = '';
         this.panel.classList.add( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'false' );
+
+        this._lockScroll();
     }
 
     _hide() {
         this._cancelHide();
-
-        // Cancel any in-flight reveal (image still loading when user dismisses).
-        if ( this._revealTimer ) {
-            clearTimeout( this._revealTimer );
-            this._revealTimer = null;
-        }
 
         this.panel.classList.remove( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'true' );
@@ -307,6 +297,29 @@ class PostHoverBox {
         // Hard clamps: never overlap header or bottom safe zone
         top = Math.max( TOP_SAFE + gap, top );
         top = Math.min( top, vh - panelH - BOTTOM_SAFE );
+
+        this.panel.style.left = `${ Math.round( left ) }px`;
+        this.panel.style.top  = `${ Math.round( top ) }px`;
+    }
+
+    // Always places the panel below the trigger. Used when images are still
+    // loading so the panel can only grow downward (never over the keyword).
+    _positionBelow( trigger ) {
+        const triggerRect = trigger.getBoundingClientRect();
+        const panelRect   = this.panel.getBoundingClientRect();
+        const vw  = window.innerWidth;
+        const vh  = window.innerHeight;
+        const gap = this.GAP;
+
+        const TOP_SAFE    = 80;
+        const BOTTOM_SAFE = 15;
+
+        let left = triggerRect.left + ( triggerRect.width / 2 ) - ( panelRect.width / 2 );
+        left = Math.max( gap, Math.min( left, vw - panelRect.width - gap ) );
+
+        let top = triggerRect.bottom + gap;
+        top = Math.max( TOP_SAFE + gap, top );
+        top = Math.min( top, vh - panelRect.height - BOTTOM_SAFE );
 
         this.panel.style.left = `${ Math.round( left ) }px`;
         this.panel.style.top  = `${ Math.round( top ) }px`;

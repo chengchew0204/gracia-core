@@ -52,25 +52,19 @@ class Navigation {
 
         this.lang = this.detectLanguage();
 
-        // Blocks touchmove outside the card scroll area while a card is open.
-        // Must be on document (not the slider element) so iOS Safari intercepts
-        // all touch events regardless of where the gesture starts.
-        this._blockSliderTouch = ( e ) => {
-            // Allow touch-scroll inside the card content scroll container only
-            // when there is actual overflow to scroll. If the post content is
-            // shorter than the viewport the container has no overflow, so we
-            // block the event to prevent iOS rubber-band scroll breaking layout.
-            const scrollContainer = e.target.closest( '.gracia-slide-scroll' );
-            if ( scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight ) return;
-            e.preventDefault();
-        };
+        // Scroll position of #gracia-slides at the moment a card opens.
+        // Used by _boundCorrectSliderScroll to snap back if the slider drifts.
+        this._lockedSliderScrollTop = 0;
 
-        // Blocks mouse-wheel / trackpad scroll on the homepage while a card
-        // is open. Stored on the instance for stable removeEventListener.
-        this._blockSliderWheel = ( e ) => {
-            const scrollContainer = e.target.closest( '.gracia-slide-scroll' );
-            if ( scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight ) return;
-            e.preventDefault();
+        // Detects and immediately corrects any drift of #gracia-slides while a
+        // card is open. Replaces document-level event blocking: instead of
+        // preventing scroll (which stops users from self-healing a broken layout
+        // on iOS Safari), we let the scroll happen and snap it back instantly.
+        this._boundCorrectSliderScroll = () => {
+            if ( ! this.cardOpened || ! this.slider ) return;
+            if ( this.slider.scrollTop !== this._lockedSliderScrollTop ) {
+                this.slider.scrollTop = this._lockedSliderScrollTop;
+            }
         };
 
         // Bound handler that blocks pinch-to-zoom (two-finger gestures).
@@ -660,13 +654,15 @@ class Navigation {
         this.cardOpened  = true;
         this.targetSlide = divId;
 
-        // Lock scroll while a card is open using event prevention only.
-        // CSS overflow/overscrollBehavior mutations cause the fixed background
-        // image to jump (viewport reflow) — event prevention is sufficient and
-        // has zero rendering cost. Listeners go on document so iOS Safari
-        // intercepts all gestures regardless of where the finger starts.
-        document.addEventListener( 'touchmove', this._blockSliderTouch, { passive: false } );
-        document.addEventListener( 'wheel',     this._blockSliderWheel, { passive: false } );
+        // Record current slider position and start monitoring for drift.
+        // Any unintended scroll of #gracia-slides (e.g. iOS Safari rubber-band)
+        // is caught by the scroll event and snapped back immediately, keeping
+        // the opened slide in view without blocking user gestures at the
+        // document level (which would prevent self-healing a broken layout).
+        if ( this.slider ) {
+            this._lockedSliderScrollTop = this.slider.scrollTop;
+            this.slider.addEventListener( 'scroll', this._boundCorrectSliderScroll, { passive: true } );
+        }
 
         this.cancelPendingHints();
         this.hideCurrentCursorHint();
@@ -679,8 +675,9 @@ class Navigation {
         this.cardOpened  = false;
         this.targetSlide = null;
 
-        document.removeEventListener( 'touchmove', this._blockSliderTouch );
-        document.removeEventListener( 'wheel',     this._blockSliderWheel );
+        if ( this.slider ) {
+            this.slider.removeEventListener( 'scroll', this._boundCorrectSliderScroll );
+        }
 
         this.cancelPendingHints();
         this.hideAllActiveTextHints();

@@ -31,6 +31,7 @@
     max-height: min(520px, 75vh);
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     background: #fff;
     color: #111;
     font-family: 'ClearSans', Helvetica, sans-serif;
