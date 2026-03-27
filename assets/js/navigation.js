@@ -118,12 +118,21 @@ class Navigation {
             this.hideSpinner();
             this.completeInitialization();
 
-            // Release the loading lock. PHP renders #gracia-slides with
-            // inline style="overflow:hidden;touch-action:none" so the slider
-            // is inert from the very first painted frame — even before any
-            // external CSS file has loaded. Clear those inline overrides and
-            // add .gracia-ready, which enables overflow-y:scroll and
-            // scroll-snap-type in the stylesheet.
+            // Release the loading lock. Two mechanisms kept the page inert:
+            //
+            // 1. <style id="gracia-critical-loading"> injected at wp_head
+            //    priority 0 — locks html, body, and #gracia-slides with
+            //    overflow:hidden before any external CSS loads.
+            //
+            // 2. Inline style="overflow:hidden;touch-action:none" on the
+            //    #gracia-slides div in the PHP template.
+            //
+            // Remove both now that every handler is bound, then add
+            // .gracia-ready which enables scroll and snap in the stylesheet.
+            const criticalStyle = document.getElementById( 'gracia-critical-loading' );
+            if ( criticalStyle ) {
+                criticalStyle.remove();
+            }
             if ( this.slider ) {
                 this.slider.style.overflow    = '';
                 this.slider.style.touchAction = '';

@@ -28,9 +28,7 @@ class Gracia_Homepage {
         global $post;
         if ( $post && has_shortcode( $post->post_content, 'gracia_homepage' ) ) {
             add_filter( 'body_class', [ $this, 'add_homepage_body_class' ] );
-            // Preload fonts with high priority so the browser starts downloading
-            // them immediately — before CSS is parsed — eliminating the flash of
-            // the wrong (thin) fallback font on first load.
+            add_action( 'wp_head', [ $this, 'inject_critical_loading_css' ], 0 );
             add_action( 'wp_head', [ $this, 'preload_fonts' ], 1 );
         }
     }
@@ -42,6 +40,22 @@ class Gracia_Homepage {
     public function add_homepage_body_class( array $classes ): array {
         $classes[] = 'gracia-homepage-active';
         return $classes;
+    }
+
+    /**
+     * Inject a tiny inline <style> at priority 0 (the very first thing in <head>).
+     * This runs before any external stylesheet, Blocksy's CSS, or WordPress
+     * Additional CSS has loaded. It guarantees the page is non-scrollable and
+     * non-interactive from the very first painted frame. JS removes the
+     * .gracia-not-ready state after completeInitialization() finishes.
+     */
+    public function inject_critical_loading_css(): void {
+        ?>
+        <style id="gracia-critical-loading">
+            html, body { overflow: hidden !important; height: 100dvh !important; }
+            #gracia-slides { overflow: hidden !important; touch-action: none !important; }
+        </style>
+        <?php
     }
 
     /**
