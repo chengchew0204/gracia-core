@@ -97,10 +97,18 @@
     display: none; /* Chrome, Safari, Edge */
 }
 
-/* Prevent body scroll while slider is active */
-body.gracia-loading {
+/* Prevent all interaction while the site is loading. The class is present from
+   init() until completeInitialization() finishes, not just until images load.
+   pointer-events:none on #gracia-slides (not body) avoids blocking browser
+   chrome / extension UI. Hiding overflow prevents premature slide scrolling
+   that would desync scroll-snap from the JS state. */
+body.gracia-loading #gracia-slides {
     overflow: hidden;
     pointer-events: none;
+}
+
+body.gracia-loading {
+    overflow: hidden;
 }
 
 /* -----------------------------------------------------------------------------
@@ -471,12 +479,13 @@ body.card-open #gracia-slides {
 #gracia-loading-spinner {
     position: fixed;
     inset: 0;
-    background: transparent;
+    background: rgba(0, 0, 0, 0.01);
     z-index: 99999;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: opacity 0.5s ease-out;
+    pointer-events: auto;
 }
 
 .gracia-spinner-wrapper {

@@ -117,6 +117,12 @@ class Navigation {
         this.loadBackgroundImages( () => {
             this.hideSpinner();
             this.completeInitialization();
+
+            // Release the loading lock only after every handler is bound.
+            // Until this point, body.gracia-loading keeps #gracia-slides
+            // non-scrollable and non-interactive so premature user input
+            // cannot desync scroll-snap from the JS state.
+            this.body.classList.remove( 'gracia-loading' );
         } );
     }
 
@@ -151,7 +157,6 @@ class Navigation {
         const spinner = document.getElementById( 'gracia-loading-spinner' );
         if ( spinner ) {
             this.body.classList.add( 'gracia-loading' );
-            spinner.style.pointerEvents = 'auto';
         }
     }
 
@@ -161,7 +166,6 @@ class Navigation {
 
         spinner.style.opacity = '0';
         spinner.style.transition = 'opacity 0.5s ease-out';
-        this.body.classList.remove( 'gracia-loading' );
 
         setTimeout( () => {
             if ( spinner.parentNode ) {
