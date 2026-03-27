@@ -3,7 +3,7 @@
  * Plugin Name: Gracia Core
  * Plugin URI:  https://gracia.la
  * Description: Core functionality for gracia.la. Built from scratch for clean, performant code.
- * Version:     1.0.44
+ * Version:     1.0.45
  * Author:      zackwoo
  * Author URI:  https://gracia.la
  * Text Domain: gracia-core
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'GRACIA_VERSION',    '1.0.44' );
+define( 'GRACIA_VERSION',    '1.0.45' );
 define( 'GRACIA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GRACIA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

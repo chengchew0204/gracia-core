@@ -232,35 +232,33 @@ class Navigation {
 
     /**
      * For each slide that contains a .homepage-video-background element,
-     * replace the CSS background image with a muted video managed by an
-     * IntersectionObserver (play when visible, pause + reset when not).
+     * prepare a lazy-loaded video managed by an IntersectionObserver.
+     *
+     * Videos are NOT fetched on page load. The src is stored in data-src and
+     * only copied to the real src attribute when the slide becomes visible
+     * (or is one slide away). This prevents all video files from downloading
+     * simultaneously and competing for bandwidth during initial load.
      */
     initVideoBackgrounds() {
         this._videoSlides = [];
 
-        this.slides.forEach( slide => {
+        this.slides.forEach( ( slide, index ) => {
             const videoDef = slide.querySelector( '.homepage-video-background' );
             if ( ! videoDef ) return;
 
             const videoUrl = videoDef.dataset.videoUrl;
             if ( ! videoUrl ) return;
 
-            // Keep the featured image in place — it shows while the video loads.
-            // The video fades in over it once canplay fires (see below).
             slide.classList.add( 'has-video-bg' );
 
             const video       = document.createElement( 'video' );
-            video.src         = videoUrl;
-            // No autoplay attribute — the IntersectionObserver drives play/pause.
-            // Setting autoplay fires on DOM insertion, before the observer can intercept.
+            video.dataset.src = videoUrl;
             video.muted       = true;
             video.loop        = true;
             video.playsInline = true;
-            video.preload     = 'auto';
+            video.preload     = 'none';
             video.className   = 'gracia-video-bg';
 
-            // Fade the video in once enough data is buffered to start playing.
-            // Until then the slide's featured image remains fully visible underneath.
             video.addEventListener( 'canplay', () => {
                 video.classList.add( 'ready' );
             }, { once: true } );
@@ -273,41 +271,95 @@ class Navigation {
             }
 
             videoDef.style.display = 'none';
-            this._videoSlides.push( { slide, video } );
+            this._videoSlides.push( { slide, video, index } );
         } );
 
         this._initVideoObserver();
     }
 
+    /**
+     * Load a video's src from data-src if not already loaded, then switch
+     * preload to 'auto' so the browser starts buffering.
+     */
+    _loadVideoSrc( video ) {
+        if ( video.src || ! video.dataset.src ) return;
+        video.src     = video.dataset.src;
+        video.preload = 'auto';
+    }
+
+    /**
+     * Preload videos for slides adjacent to the given slide index so
+     * transitions to the next/previous slide feel instant.
+     */
+    _preloadAdjacentVideos( slideIndex ) {
+        for ( const entry of this._videoSlides ) {
+            if ( Math.abs( entry.index - slideIndex ) === 1 ) {
+                this._loadVideoSrc( entry.video );
+            }
+        }
+    }
+
     _initVideoObserver() {
         if ( this._videoSlides.length === 0 ) return;
 
-        // Fallback for browsers without IntersectionObserver support.
         if ( ! window.IntersectionObserver ) {
-            this._videoSlides.forEach( ( { video } ) => video.play().catch( () => {} ) );
+            this._videoSlides.forEach( ( { video } ) => {
+                this._loadVideoSrc( video );
+                video.play().catch( () => {} );
+            } );
             return;
         }
 
+        // Map every slide element -> its index in this.slides (all slides).
+        // Used so non-video slides can still trigger adjacent video preloading.
+        const slideIndexMap = new Map();
+        this.slides.forEach( ( slide, i ) => slideIndexMap.set( slide, i ) );
+
+        // Map every video-slide element -> its entry, for play/pause lookups.
+        const videoSlideMap = new Map(
+            this._videoSlides.map( entry => [ entry.slide, entry ] )
+        );
+
         const observer = new IntersectionObserver( ( entries ) => {
             entries.forEach( entry => {
-                const video = entry.target.querySelector( '.gracia-video-bg' );
-                if ( ! video ) return;
+                const slideIndex = slideIndexMap.get( entry.target );
+                if ( slideIndex === undefined ) return;
+
+                const videoEntry = videoSlideMap.get( entry.target );
 
                 if ( entry.isIntersecting ) {
-                    // Reset to the first frame before every play so the video
-                    // always starts from the beginning when re-navigated to.
-                    video.currentTime = 0;
-                    video.play().catch( () => {} );
+                    // Preload adjacent video slides regardless of whether the
+                    // current slide itself has a video background. This ensures
+                    // that arriving on a non-video slide still triggers loading
+                    // for a video slide that comes next.
+                    this._preloadAdjacentVideos( slideIndex );
+
+                    if ( videoEntry ) {
+                        this._loadVideoSrc( videoEntry.video );
+                        videoEntry.video.currentTime = 0;
+                        videoEntry.video.play().catch( () => {} );
+                    }
                 } else {
-                    video.pause();
-                    // Do not seek here — seeking on leave renders a decoded
-                    // frame at position 0 before pause settles, causing a flash.
-                    // The reset above handles it cleanly on the next entry.
+                    if ( videoEntry ) {
+                        videoEntry.video.pause();
+                    }
                 }
             } );
         }, { threshold: 0.5 } );
 
-        this._videoSlides.forEach( ( { slide } ) => observer.observe( slide ) );
+        // Observe ALL slides, not just video slides, so non-video slides can
+        // trigger preloading for the video slide that follows them.
+        this.slides.forEach( slide => observer.observe( slide ) );
+
+        // Immediately load the first video slide on page load so the video
+        // is already buffering when the user lands on the homepage.
+        // Also preload its neighbour so the next slide's video is ready
+        // before the user scrolls to it.
+        const first = this._videoSlides[0];
+        if ( first ) {
+            this._loadVideoSrc( first.video );
+            this._preloadAdjacentVideos( first.index );
+        }
     }
 
     // =========================================================================
