@@ -571,11 +571,14 @@ class Navigation {
             } );
         } );
 
-        // Click outside slides closes cards
+        // Click outside slides closes cards.
+        // Exclude the hover panel: it is appended to <body> (not inside the slide)
+        // so without this guard any tap on it would close the open card.
         document.addEventListener( 'click', ( e ) => {
-            if ( this.cardOpened && ! e.target.closest( '.gracia-slide.opened' ) ) {
-                this.closeCards();
-            }
+            if ( ! this.cardOpened ) return;
+            if ( e.target.closest( '.gracia-slide.opened' ) ) return;
+            if ( e.target.closest( '#gracia-hover-panel' ) ) return;
+            this.closeCards();
         } );
     }
 
