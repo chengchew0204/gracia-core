@@ -1,6 +1,6 @@
 /* =============================================================================
    gracia.la — Hover box panel styles
-   Loaded by gracia-core on individual post pages (is_single()).
+   Loaded by gracia-core on individual post pages (is_singular()).
 
    Pairs with post-hover-box.js to display floating content panels
    for span.hover-keyword triggers.
@@ -23,15 +23,20 @@
 #gracia-hover-panel {
     display: none;
     position: fixed;
-    width: 280px;
-    max-width: calc(100vw - 16px);
-    max-height: 280px;
+    width: fit-content;
+    min-width: 120px;
+    max-width: min(340px, calc(100vw - 30px));
+    height: auto;
+    min-height: 0;
+    max-height: min(520px, 75vh);
     overflow-y: auto;
     overflow-x: hidden;
     background: #fff;
     color: #111;
     font-family: 'ClearSans', Helvetica, sans-serif;
     font-size: 15px;
+    font-weight: 500;
+    font-stretch: 80%;
     line-height: 1.4;
     z-index: 9999;
     padding: 14px 16px;
@@ -52,6 +57,26 @@
    3. Inner content resets — white-box context overrides post dark theme
    ============================================================================= */
 
+/*
+ * Reset font-weight for all panel children.
+ * style.css sets body { font-weight: 300 } and p { font-weight: 400 } globally.
+ * Those rules beat inherited values, so we must target children directly.
+ * #gracia-hover-panel * has specificity [1,0,0], which beats p [0,0,1].
+ */
+#gracia-hover-panel * {
+    font-weight: 500;
+    font-stretch: 80%;
+}
+
+/* Remove leading and trailing whitespace gaps from panel content */
+#gracia-hover-panel > *:first-child {
+    margin-top: 0;
+}
+
+#gracia-hover-panel > *:last-child {
+    margin-bottom: 0;
+}
+
 #gracia-hover-panel img {
     display: block;
     max-width: 100%;
@@ -59,11 +84,27 @@
     margin-bottom: 8px;
 }
 
+#gracia-hover-panel img:last-child {
+    margin-bottom: 0;
+}
+
 #gracia-hover-panel video {
     display: block;
     max-width: 100%;
     height: auto;
     margin-bottom: 8px;
+}
+
+#gracia-hover-panel video:last-child {
+    margin-bottom: 0;
+}
+
+#gracia-hover-panel p {
+    margin: 0 0 0 0;
+}
+
+#gracia-hover-panel p:last-child {
+    margin-bottom: 0;
 }
 
 #gracia-hover-panel a {
@@ -85,6 +126,7 @@
     text-align: center;
 }
 
+/* Override the * rule above for bold elements */
 #gracia-hover-panel b,
 #gracia-hover-panel strong {
     font-weight: 700;

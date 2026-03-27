@@ -20,24 +20,35 @@ class PostHoverBox {
         this.hideTimer     = null;
         this.isTouch       = this._detectTouch();
 
-        this.GAP = 8;
+        this.GAP = 15;
 
         // Scroll-lock state
         this._scrollLocked = false;
-        this._savedScrollY = 0;
+
+        // Timer used to reveal the panel after images settle (see _show)
+        this._revealTimer = null;
 
         // Bound handlers — stored on instance so the same reference is used
         // for both addEventListener and removeEventListener.
 
         // Blocks mouse-wheel / trackpad scroll on desktop.
+        // Panel events never reach this handler — the panel stops propagation
+        // at its own listeners (see _buildPanel).
         this._boundBlockWheel = ( e ) => {
-            if ( this.panel && this.panel.contains( e.target ) ) return;
             e.preventDefault();
         };
 
-        // Blocks native touch scroll on mobile (iOS Safari requires this).
+        // Blocks native touch scroll on mobile / iOS Safari.
+        // Same — panel events are stopped before they reach document.
         this._boundBlockTouchMove = ( e ) => {
-            if ( this.panel && this.panel.contains( e.target ) ) return;
+            e.preventDefault();
+        };
+
+        // Blocks keyboard-driven scroll (arrow keys, Page Up/Down, Space, etc.)
+        this._boundBlockKeyScroll = ( e ) => {
+            const SCROLL_KEYS = [ 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ' ];
+            if ( ! SCROLL_KEYS.includes( e.key ) ) return;
+            if ( e.target.matches( 'input, textarea, select' ) ) return;
             e.preventDefault();
         };
 
@@ -67,6 +78,16 @@ class PostHoverBox {
         this.panel.id = 'gracia-hover-panel';
         this.panel.setAttribute( 'aria-hidden', 'true' );
         document.body.appendChild( this.panel );
+
+        // Stop touchmove and wheel events from bubbling out of the panel so
+        // the document-level scroll-block handlers never see them. This lets
+        // the panel scroll its own overflow content naturally, while everything
+        // outside the panel remains locked. stopPropagation() has no effect on
+        // whether the browser scrolls the element — it only prevents the event
+        // from reaching ancestors. The panel listeners are passive (touchmove)
+        // or default (wheel) so they never suppress the panel's own scroll.
+        this.panel.addEventListener( 'touchmove', ( e ) => { e.stopPropagation(); }, { passive: true } );
+        this.panel.addEventListener( 'wheel',     ( e ) => { e.stopPropagation(); } );
     }
 
     // =========================================================================
@@ -158,14 +179,52 @@ class PostHoverBox {
 
         this.activeTrigger = trigger;
 
-        // Make the panel measurable but invisible so _position can read
-        // its actual height/width before we fade it in.
+        // Keep panel invisible while we wait for images to load.
+        // If we position before images are loaded their height is zero,
+        // causing the panel to appear at the keyword instead of above/below it.
         this.panel.classList.remove( 'is-visible' );
         this.panel.style.visibility = 'hidden';
         this.panel.style.display    = 'block';
         this.panel.style.opacity    = '0';
 
-        // Force a layout so the browser computes dimensions.
+        // Find images that are still loading (src set but not yet complete).
+        const pending = Array.from( this.panel.querySelectorAll( 'img[src]' ) )
+            .filter( img => ! img.complete );
+
+        if ( pending.length === 0 ) {
+            // All content is ready — position and reveal immediately.
+            this._revealPanel( trigger );
+        } else {
+            // Wait for every image to settle (load or error).
+            // A 1500ms timeout ensures we never wait forever on a slow image.
+            let remaining = pending.length;
+            const onSettle = () => {
+                remaining--;
+                if ( remaining <= 0 ) {
+                    this._revealPanel( trigger );
+                }
+            };
+
+            this._revealTimer = setTimeout( () => this._revealPanel( trigger ), 1500 );
+            pending.forEach( img => {
+                img.addEventListener( 'load',  onSettle, { once: true } );
+                img.addEventListener( 'error', onSettle, { once: true } );
+            } );
+        }
+
+        this._lockScroll();
+    }
+
+    _revealPanel( trigger ) {
+        if ( this._revealTimer ) {
+            clearTimeout( this._revealTimer );
+            this._revealTimer = null;
+        }
+
+        // Abort if the user dismissed the panel while images were loading.
+        if ( this.activeTrigger !== trigger ) return;
+
+        // Force reflow so getBoundingClientRect returns final image dimensions.
         this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
 
         this._position( trigger );
@@ -174,12 +233,17 @@ class PostHoverBox {
         this.panel.style.opacity    = '';
         this.panel.classList.add( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'false' );
-
-        this._lockScroll();
     }
 
     _hide() {
         this._cancelHide();
+
+        // Cancel any in-flight reveal (image still loading when user dismisses).
+        if ( this._revealTimer ) {
+            clearTimeout( this._revealTimer );
+            this._revealTimer = null;
+        }
+
         this.panel.classList.remove( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'true' );
         this.activeTrigger = null;
@@ -205,21 +269,26 @@ class PostHoverBox {
 
     _position( trigger ) {
         const triggerRect = trigger.getBoundingClientRect();
-        const panelRect  = this.panel.getBoundingClientRect();
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
+        const panelRect   = this.panel.getBoundingClientRect();
+        const vw  = window.innerWidth;
+        const vh  = window.innerHeight;
         const gap = this.GAP;
 
         const panelW = panelRect.width;
         const panelH = panelRect.height;
 
+        // Reserved zones: header at top (burger + logo), safe margin at bottom.
+        const TOP_SAFE    = 100;
+        const BOTTOM_SAFE = 15;
+
         // --- Horizontal: center on trigger, clamp to viewport ---
         let left = triggerRect.left + ( triggerRect.width / 2 ) - ( panelW / 2 );
         left = Math.max( gap, Math.min( left, vw - panelW - gap ) );
 
-        // --- Vertical: prefer above, flip below if needed ---
-        const spaceAbove = triggerRect.top;
-        const spaceBelow = vh - triggerRect.bottom;
+        // --- Vertical: prefer above trigger, flip below if not enough room ---
+        // Both spaceAbove and spaceBelow exclude their respective safe zones.
+        const spaceAbove = triggerRect.top - TOP_SAFE;
+        const spaceBelow = vh - triggerRect.bottom - BOTTOM_SAFE;
         let top;
 
         if ( spaceAbove >= panelH + gap ) {
@@ -227,17 +296,17 @@ class PostHoverBox {
         } else if ( spaceBelow >= panelH + gap ) {
             top = triggerRect.bottom + gap;
         } else {
-            // Neither fits cleanly -- use whichever side has more room
+            // Neither side fits cleanly — use whichever has more room
             if ( spaceAbove >= spaceBelow ) {
-                top = Math.max( gap, triggerRect.top - panelH - gap );
+                top = triggerRect.top - panelH - gap;
             } else {
                 top = triggerRect.bottom + gap;
-                // If it overflows bottom, clamp
-                if ( top + panelH > vh - gap ) {
-                    top = vh - panelH - gap;
-                }
             }
         }
+
+        // Hard clamps: never overlap header or bottom safe zone
+        top = Math.max( TOP_SAFE + gap, top );
+        top = Math.min( top, vh - panelH - BOTTOM_SAFE );
 
         this.panel.style.left = `${ Math.round( left ) }px`;
         this.panel.style.top  = `${ Math.round( top ) }px`;
@@ -250,20 +319,16 @@ class PostHoverBox {
     _lockScroll() {
         if ( this._scrollLocked ) return;
 
-        // Body-fix: iOS Safari ignores overflow:hidden on body without
-        // position:fixed. Also visually freezes the page in place.
-        this._savedScrollY = window.scrollY;
-        document.body.style.overflow = 'hidden';
-        document.body.style.position = 'fixed';
-        document.body.style.top      = `-${ this._savedScrollY }px`;
-        document.body.style.width    = '100%';
-
-        // Block wheel events (desktop mouse / trackpad scroll).
-        // { passive: false } allows preventDefault() to cancel the scroll.
-        document.addEventListener( 'wheel', this._boundBlockWheel, { passive: false } );
-
-        // Block touch scroll (mobile / iOS Safari).
+        // Block all user-initiated scroll purely at the event level.
+        // No CSS changes to overflow or padding — any mutation of html/body
+        // overflow or the scrollbar presence causes the fixed background image
+        // to jump due to a viewport reflow. Event prevention is sufficient:
+        //   wheel     — mouse wheel / trackpad on desktop
+        //   touchmove — native touch scroll on mobile / iOS Safari
+        //   keydown   — arrow keys, Page Up/Down, Space, Home, End
+        document.addEventListener( 'wheel',     this._boundBlockWheel,     { passive: false } );
         document.addEventListener( 'touchmove', this._boundBlockTouchMove, { passive: false } );
+        document.addEventListener( 'keydown',   this._boundBlockKeyScroll, false );
 
         this._scrollLocked = true;
     }
@@ -271,13 +336,10 @@ class PostHoverBox {
     _unlockScroll() {
         if ( ! this._scrollLocked ) return;
 
-        document.body.style.overflow = '';
-        document.body.style.position = '';
-        document.body.style.top      = '';
-        document.body.style.width    = '';
-        document.removeEventListener( 'wheel', this._boundBlockWheel );
+        document.removeEventListener( 'wheel',     this._boundBlockWheel );
         document.removeEventListener( 'touchmove', this._boundBlockTouchMove );
-        window.scrollTo( 0, this._savedScrollY );
+        document.removeEventListener( 'keydown',   this._boundBlockKeyScroll );
+
         this._scrollLocked = false;
     }
 

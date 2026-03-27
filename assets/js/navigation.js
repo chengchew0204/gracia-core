@@ -34,6 +34,7 @@ class Navigation {
         this.targetSlide     = null;
         this.isScrolling     = false;
         this.slideIndexMap   = {};
+        this.menuFocusIndex  = -1;
 
         // Hint tracking (per session)
         this.cursorHintShown  = new Set();
@@ -51,12 +52,24 @@ class Navigation {
 
         this.lang = this.detectLanguage();
 
-        // Bound touchmove handler used to block slider scroll on mobile while
-        // a card is open. Stored on the instance so the same reference is used
-        // for both addEventListener and removeEventListener.
+        // Blocks touchmove outside the card scroll area while a card is open.
+        // Must be on document (not the slider element) so iOS Safari intercepts
+        // all touch events regardless of where the gesture starts.
         this._blockSliderTouch = ( e ) => {
-            // Allow touch-scroll inside the card content scroll container.
-            if ( e.target.closest( '.gracia-slide-scroll' ) ) return;
+            // Allow touch-scroll inside the card content scroll container only
+            // when there is actual overflow to scroll. If the post content is
+            // shorter than the viewport the container has no overflow, so we
+            // block the event to prevent iOS rubber-band scroll breaking layout.
+            const scrollContainer = e.target.closest( '.gracia-slide-scroll' );
+            if ( scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight ) return;
+            e.preventDefault();
+        };
+
+        // Blocks mouse-wheel / trackpad scroll on the homepage while a card
+        // is open. Stored on the instance for stable removeEventListener.
+        this._blockSliderWheel = ( e ) => {
+            const scrollContainer = e.target.closest( '.gracia-slide-scroll' );
+            if ( scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight ) return;
             e.preventDefault();
         };
 
@@ -66,6 +79,18 @@ class Navigation {
             if ( e.touches.length > 1 ) {
                 e.preventDefault();
             }
+        };
+
+        // Permanent guard against the body being dragged on iOS Safari.
+        // overflow:hidden and overscroll-behavior:none on the body/html are not
+        // fully reliable on iOS — the browser can still rubber-band and reveal
+        // the background if a touch starts outside #gracia-slides (header,
+        // safe-area gutters, etc.). This listener prevents that for the full
+        // page lifetime. Touches inside #gracia-slides are allowed through so
+        // slide-to-slide scrolling continues to work normally.
+        this._blockBodyTouch = ( e ) => {
+            if ( e.target.closest( '#gracia-slides' ) ) return;
+            e.preventDefault();
         };
 
         this.init();
@@ -103,6 +128,7 @@ class Navigation {
 
     completeInitialization() {
         this.initVideoBackgrounds();
+        this.initPanoramaBackgrounds();
         this.menuConstruct();
         this.letsListen();
         this.initScrollHints();
@@ -112,6 +138,7 @@ class Navigation {
         this.initMobileLandscapeWarning();
         this.applyMobileLabelOverrides();
         this.initPinchZoomPrevention();
+        this.initBodyScrollPrevention();
 
         // Handle direct URL visit after everything is ready
         const hash = window.location.hash.replace( '#', '' ).trim();
@@ -193,9 +220,12 @@ class Navigation {
 
     /**
      * For each slide that contains a .homepage-video-background element,
-     * replace the CSS background image with an autoplaying muted video.
+     * replace the CSS background image with a muted video managed by an
+     * IntersectionObserver (play when visible, pause + reset when not).
      */
     initVideoBackgrounds() {
+        this._videoSlides = [];
+
         this.slides.forEach( slide => {
             const videoDef = slide.querySelector( '.homepage-video-background' );
             if ( ! videoDef ) return;
@@ -203,17 +233,25 @@ class Navigation {
             const videoUrl = videoDef.dataset.videoUrl;
             if ( ! videoUrl ) return;
 
-            // Remove the background image
-            slide.style.backgroundImage = 'none';
+            // Keep the featured image in place — it shows while the video loads.
+            // The video fades in over it once canplay fires (see below).
             slide.classList.add( 'has-video-bg' );
 
-            const video = document.createElement( 'video' );
+            const video       = document.createElement( 'video' );
             video.src         = videoUrl;
-            video.autoplay    = true;
+            // No autoplay attribute — the IntersectionObserver drives play/pause.
+            // Setting autoplay fires on DOM insertion, before the observer can intercept.
             video.muted       = true;
             video.loop        = true;
             video.playsInline = true;
+            video.preload     = 'auto';
             video.className   = 'gracia-video-bg';
+
+            // Fade the video in once enough data is buffered to start playing.
+            // Until then the slide's featured image remains fully visible underneath.
+            video.addEventListener( 'canplay', () => {
+                video.classList.add( 'ready' );
+            }, { once: true } );
 
             const bgLayer = slide.querySelector( '.gracia-slide-bg' );
             if ( bgLayer ) {
@@ -222,8 +260,133 @@ class Navigation {
                 slide.prepend( video );
             }
 
-            // Hide the definition element (it's just a data carrier)
             videoDef.style.display = 'none';
+            this._videoSlides.push( { slide, video } );
+        } );
+
+        this._initVideoObserver();
+    }
+
+    _initVideoObserver() {
+        if ( this._videoSlides.length === 0 ) return;
+
+        // Fallback for browsers without IntersectionObserver support.
+        if ( ! window.IntersectionObserver ) {
+            this._videoSlides.forEach( ( { video } ) => video.play().catch( () => {} ) );
+            return;
+        }
+
+        const observer = new IntersectionObserver( ( entries ) => {
+            entries.forEach( entry => {
+                const video = entry.target.querySelector( '.gracia-video-bg' );
+                if ( ! video ) return;
+
+                if ( entry.isIntersecting ) {
+                    // Reset to the first frame before every play so the video
+                    // always starts from the beginning when re-navigated to.
+                    video.currentTime = 0;
+                    video.play().catch( () => {} );
+                } else {
+                    video.pause();
+                    // Do not seek here — seeking on leave renders a decoded
+                    // frame at position 0 before pause settles, causing a flash.
+                    // The reset above handles it cleanly on the next entry.
+                }
+            } );
+        }, { threshold: 0.5 } );
+
+        this._videoSlides.forEach( ( { slide } ) => observer.observe( slide ) );
+    }
+
+    // =========================================================================
+    // Panorama backgrounds
+    // =========================================================================
+
+    /**
+     * For each slide containing a .homepage-panorama-background element,
+     * creates an infinite right-to-left scrolling strip using the slide's
+     * featured image. The image tiles seamlessly via background-repeat:repeat-x;
+     * the animation offset equals exactly one rendered tile width so the reset
+     * is invisible.
+     *
+     * The animation is paused via IntersectionObserver whenever the slide is
+     * not in view, keeping off-screen CPU/GPU usage at zero.
+     */
+    initPanoramaBackgrounds() {
+        const observer = window.IntersectionObserver
+            ? new IntersectionObserver( ( entries ) => {
+                entries.forEach( entry => {
+                    const strip = entry.target.querySelector( '.gracia-panorama-bg' );
+                    if ( strip ) {
+                        strip.style.animationPlayState = entry.isIntersecting ? 'running' : 'paused';
+                    }
+                } );
+            }, { threshold: 0.5 } )
+            : null;
+
+        this.slides.forEach( slide => {
+            const panoramaDef = slide.querySelector( '.homepage-panorama-background' );
+            if ( ! panoramaDef ) return;
+
+            // Accept an explicit URL on the carrier div, or fall back to the
+            // slide's own high-res featured image.
+            const imageUrl = panoramaDef.dataset.imageUrl || slide.dataset.bgHighRes;
+            if ( ! imageUrl ) return;
+
+            slide.classList.add( 'has-panorama-bg' );
+            panoramaDef.style.display = 'none';
+
+            const strip       = document.createElement( 'div' );
+            strip.className   = 'gracia-panorama-bg';
+            strip.style.backgroundImage  = `url('${ imageUrl }')`;
+            strip.style.animationPlayState = 'paused'; // held until image dimensions are known
+
+            const bgLayer = slide.querySelector( '.gracia-slide-bg' );
+            if ( bgLayer ) {
+                bgLayer.appendChild( strip );
+            } else {
+                slide.prepend( strip );
+            }
+
+            if ( observer ) {
+                observer.observe( slide );
+            }
+
+            // Load the image to measure its natural dimensions, then calculate
+            // the exact pixel offset for one seamless tile and inject the keyframe.
+            const img  = new Image();
+            img.onload = () => {
+                const slideH       = slide.offsetHeight || window.innerHeight;
+                // Width the image occupies when scaled to fill the slide height.
+                const tileW        = Math.round( img.naturalWidth * ( slideH / img.naturalHeight ) );
+                const animName     = `gracia-panorama-${ slide.id }`;
+                // Pixels per second — adjust to taste.
+                const speed        = 60;
+                const duration     = ( tileW / speed ).toFixed( 2 );
+
+                // Inject a per-slide @keyframes rule so the reset lands exactly
+                // on a tile boundary, making the loop invisible.
+                const styleEl      = document.createElement( 'style' );
+                styleEl.textContent = `@keyframes ${ animName } {`
+                    + ` from { background-position: 0px center; }`
+                    + ` to   { background-position: -${ tileW }px center; }`
+                    + ` }`;
+                document.head.appendChild( styleEl );
+
+                strip.style.animation = `${ animName } ${ duration }s linear infinite`;
+
+                // Re-apply the observer-controlled play state because setting
+                // the animation shorthand resets animationPlayState to 'running'.
+                const rect      = slide.getBoundingClientRect();
+                const inView    = rect.top < window.innerHeight && rect.bottom > 0;
+                strip.style.animationPlayState = inView ? 'running' : 'paused';
+            };
+            img.onerror = () => {
+                // Image failed to load — leave the slide's CSS background intact.
+                strip.remove();
+                slide.classList.remove( 'has-panorama-bg' );
+            };
+            img.src = imageUrl;
         } );
     }
 
@@ -251,9 +414,10 @@ class Navigation {
 
             const li   = document.createElement( 'li' );
             const item = document.createElement( 'p' );
-            item.className    = 'gracia-menu-item';
-            item.dataset.post = postId;
-            item.textContent  = title;
+            item.className       = 'gracia-menu-item';
+            item.dataset.post    = postId;
+            item.dataset.slideId = divId;
+            item.textContent     = title;
 
             item.addEventListener( 'click', async ( e ) => {
                 e.preventDefault();
@@ -328,6 +492,7 @@ class Navigation {
         if ( ! this.menuOverlay ) return;
         if ( this._menuJustOpened ) return;
 
+        this.clearMenuFocus();
         this.menuOpened = false;
 
         // Phase 1: play item exit animation (0.2s).
@@ -495,13 +660,13 @@ class Navigation {
         this.cardOpened  = true;
         this.targetSlide = divId;
 
-        // On iOS Safari, overflow:hidden on #gracia-slides does not stop
-        // in-progress touch scroll. Block touchmove at the event level so
-        // the background slides cannot scroll while a card is open.
-        // { passive: false } is required to allow preventDefault().
-        if ( this.slider ) {
-            this.slider.addEventListener( 'touchmove', this._blockSliderTouch, { passive: false } );
-        }
+        // Lock scroll while a card is open using event prevention only.
+        // CSS overflow/overscrollBehavior mutations cause the fixed background
+        // image to jump (viewport reflow) — event prevention is sufficient and
+        // has zero rendering cost. Listeners go on document so iOS Safari
+        // intercepts all gestures regardless of where the finger starts.
+        document.addEventListener( 'touchmove', this._blockSliderTouch, { passive: false } );
+        document.addEventListener( 'wheel',     this._blockSliderWheel, { passive: false } );
 
         this.cancelPendingHints();
         this.hideCurrentCursorHint();
@@ -514,9 +679,8 @@ class Navigation {
         this.cardOpened  = false;
         this.targetSlide = null;
 
-        if ( this.slider ) {
-            this.slider.removeEventListener( 'touchmove', this._blockSliderTouch );
-        }
+        document.removeEventListener( 'touchmove', this._blockSliderTouch );
+        document.removeEventListener( 'wheel',     this._blockSliderWheel );
 
         this.cancelPendingHints();
         this.hideAllActiveTextHints();
@@ -688,12 +852,89 @@ class Navigation {
     }
 
     // =========================================================================
+    // Burger menu keyboard focus
+    // =========================================================================
+
+    setMenuFocus( index, items ) {
+        items.forEach( item => item.classList.remove( 'keyboard-focused' ) );
+        this.menuFocusIndex = index;
+        if ( items[ index ] ) {
+            items[ index ].classList.add( 'keyboard-focused' );
+            items[ index ].scrollIntoView( { block: 'nearest' } );
+        }
+    }
+
+    clearMenuFocus() {
+        if ( this.menuOverlay ) {
+            this.menuOverlay.querySelectorAll( '.gracia-menu-item.keyboard-focused' )
+                .forEach( item => item.classList.remove( 'keyboard-focused' ) );
+        }
+        this.menuFocusIndex = -1;
+    }
+
+    // =========================================================================
     // Keyboard navigation
     // =========================================================================
 
     initArrowKeyNavigation() {
         document.addEventListener( 'keydown', ( e ) => {
+
+            // --- Menu open: Up / Down move focus; Left / Right close ---
+            if ( this.menuOpened ) {
+                const items = this.menuOverlay
+                    ? Array.from( this.menuOverlay.querySelectorAll( '.gracia-menu-item' ) )
+                    : [];
+
+                if ( e.key === 'ArrowDown' ) {
+                    e.preventDefault();
+                    const next = this.menuFocusIndex < items.length - 1
+                        ? this.menuFocusIndex + 1
+                        : 0;
+                    this.setMenuFocus( next, items );
+                    return;
+                }
+
+                if ( e.key === 'ArrowUp' ) {
+                    e.preventDefault();
+                    const prev = this.menuFocusIndex > 0
+                        ? this.menuFocusIndex - 1
+                        : items.length - 1;
+                    this.setMenuFocus( prev, items );
+                    return;
+                }
+
+                if ( e.key === 'ArrowLeft' || e.key === 'ArrowRight' ) {
+                    e.preventDefault();
+                    this.deactivateMenu();
+                    return;
+                }
+
+                return;
+            }
+
+            // --- Card open: no arrow key handling ---
             if ( this.cardOpened ) return;
+
+            // --- Menu closed: Right opens the menu; Up / Down scroll slides ---
+            if ( e.key === 'ArrowRight' ) {
+                e.preventDefault();
+                this.activateMenu();
+
+                // Pre-focus the item that matches the currently visible slide.
+                const info  = this.getVisibleSlideInfo();
+                const items = this.menuOverlay
+                    ? Array.from( this.menuOverlay.querySelectorAll( '.gracia-menu-item' ) )
+                    : [];
+
+                // Small delay so the menu's entrance animation has begun
+                setTimeout( () => {
+                    const idx = info.id !== null
+                        ? items.findIndex( item => item.dataset.slideId === info.id )
+                        : -1;
+                    this.setMenuFocus( idx >= 0 ? idx : 0, items );
+                }, 50 );
+                return;
+            }
 
             const info = this.getVisibleSlideInfo();
             if ( info.index === -1 ) return;
@@ -725,9 +966,19 @@ class Navigation {
 
             if ( e.key === 'Enter' || e.key === ' ' ) {
                 e.preventDefault();
-                if ( this.cardOpened ) {
+                if ( this.menuOpened ) {
+                    // Activate the keyboard-focused menu item if one exists.
+                    if ( this.menuFocusIndex >= 0 && this.menuOverlay ) {
+                        const items = Array.from(
+                            this.menuOverlay.querySelectorAll( '.gracia-menu-item' )
+                        );
+                        if ( items[ this.menuFocusIndex ] ) {
+                            items[ this.menuFocusIndex ].click();
+                        }
+                    }
+                } else if ( this.cardOpened ) {
                     this.closeCards();
-                } else if ( ! this.menuOpened ) {
+                } else {
                     const info = this.getVisibleSlideInfo();
                     if ( info.id ) {
                         this.openCard( { divId: info.id } );
@@ -862,6 +1113,16 @@ class Navigation {
         // listeners to passive, which silently ignores preventDefault().
         document.addEventListener( 'touchstart', this._preventPinchZoom, { passive: false } );
         document.addEventListener( 'touchmove',  this._preventPinchZoom, { passive: false } );
+    }
+
+    initBodyScrollPrevention() {
+        // Permanently block any touchmove that originates outside #gracia-slides.
+        // This is the only reliable way to prevent iOS Safari from rubber-banding
+        // the page body and revealing the background colour. CSS overflow:hidden
+        // and overscroll-behavior:none on html/body are not sufficient on iOS
+        // when touches start in the header, safe-area gutters, or other fixed
+        // elements that sit outside the slider DOM subtree.
+        document.addEventListener( 'touchmove', this._blockBodyTouch, { passive: false } );
     }
 
     initMobileLandscapeWarning() {
