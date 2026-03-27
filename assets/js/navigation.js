@@ -118,11 +118,14 @@ class Navigation {
             this.hideSpinner();
             this.completeInitialization();
 
-            // Release the loading lock only after every handler is bound.
-            // Until this point, body.gracia-loading keeps #gracia-slides
-            // non-scrollable and non-interactive so premature user input
-            // cannot desync scroll-snap from the JS state.
-            this.body.classList.remove( 'gracia-loading' );
+            // Release the loading lock. #gracia-slides starts with
+            // overflow:hidden in CSS (no .gracia-ready), so the browser
+            // cannot scroll or snap slides before JS is ready. Adding
+            // .gracia-ready enables overflow-y:scroll + scroll-snap-type,
+            // making the slider interactive only after every handler is bound.
+            if ( this.slider ) {
+                this.slider.classList.add( 'gracia-ready' );
+            }
         } );
     }
 
@@ -154,10 +157,9 @@ class Navigation {
     // =========================================================================
 
     showSpinner() {
-        const spinner = document.getElementById( 'gracia-loading-spinner' );
-        if ( spinner ) {
-            this.body.classList.add( 'gracia-loading' );
-        }
+        // The spinner element is rendered in PHP and visible from first paint.
+        // No class toggle needed — the slider is locked by CSS (overflow:hidden
+        // without .gracia-ready) until completeInitialization() finishes.
     }
 
     hideSpinner() {

@@ -79,36 +79,27 @@
    2. Slides container
    ----------------------------------------------------------------------------- */
 
+/* The slider is locked from first paint so the user cannot scroll or tap
+   slides before JS has finished binding all handlers. overflow:hidden prevents
+   native scroll-snap from engaging. JS adds .gracia-ready after
+   completeInitialization() to release the lock. */
 #gracia-slides {
     position: relative;
     width: 100%;
     height: 100dvh;
-    overflow-y: scroll;
-    overflow-x: hidden;
-    scroll-snap-type: y mandatory;
-    /* Prevent rubber-band overscroll past the first/last slide on mobile.
-       Also removed -webkit-overflow-scrolling:touch (deprecated) — it
-       enabled momentum scrolling that bypassed overflow:hidden on iOS. */
+    overflow: hidden;
     overscroll-behavior-y: none;
     scrollbar-width: none; /* Firefox */
 }
 
+#gracia-slides.gracia-ready {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    scroll-snap-type: y mandatory;
+}
+
 #gracia-slides::-webkit-scrollbar {
     display: none; /* Chrome, Safari, Edge */
-}
-
-/* Prevent all interaction while the site is loading. The class is present from
-   init() until completeInitialization() finishes, not just until images load.
-   pointer-events:none on #gracia-slides (not body) avoids blocking browser
-   chrome / extension UI. Hiding overflow prevents premature slide scrolling
-   that would desync scroll-snap from the JS state. */
-body.gracia-loading #gracia-slides {
-    overflow: hidden;
-    pointer-events: none;
-}
-
-body.gracia-loading {
-    overflow: hidden;
 }
 
 /* -----------------------------------------------------------------------------
