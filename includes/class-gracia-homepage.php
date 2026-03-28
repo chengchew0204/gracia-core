@@ -254,7 +254,7 @@ class Gracia_Homepage {
                             <div class="gracia-tap-top"></div>
                             <div class="gracia-tap-left"></div>
                             <div class="gracia-tap-right"></div>
-                            <?php echo do_shortcode( apply_filters( 'the_content', $post->post_content ) ); ?>
+                            <?php echo do_shortcode( $this->lazy_load_post_videos( apply_filters( 'the_content', $post->post_content ) ) ); ?>
                             <div class="gracia-tap-bottom"></div>
                         </div>
                     </div>
@@ -273,6 +273,45 @@ class Gracia_Homepage {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Prevent videos embedded in post content from downloading at page load.
+     *
+     * All slides are rendered in the page HTML at once, including hidden cards.
+     * The browser's preload scanner would immediately discover any <video src>
+     * or <source src> and start fetching those files — even for slides the user
+     * has not opened — monopolising connections and delaying critical assets
+     * like the logo and fonts.
+     *
+     * This method moves src to data-src and forces preload="none" so the
+     * browser never initiates those requests. JS restores the src when the card
+     * is opened (see Navigation.openCard()).
+     *
+     * @param string $content Rendered post content HTML.
+     * @return string Processed HTML with video src attributes deferred.
+     */
+    private function lazy_load_post_videos( string $content ): string {
+        // <video ...> — strip preload, move src to data-src, add preload="none"
+        $content = preg_replace_callback(
+            '/<video(\b[^>]*)>/i',
+            function ( $m ) {
+                $attrs = $m[1];
+                $attrs = preg_replace( '/\s+preload\s*=\s*(["\'])[^"\']*\1/i', '', $attrs );
+                $attrs = preg_replace( '/(\s+src\s*=\s*)(["\'])([^"\']*)\2/i', ' data-src=$2$3$2', $attrs );
+                return '<video' . $attrs . ' preload="none">';
+            },
+            $content
+        );
+
+        // <source src="..."> — move src to data-src
+        $content = preg_replace(
+            '/(<source\b[^>]*)\s+src\s*=\s*(["\'])([^"\']*)\2/i',
+            '$1 data-src=$2$3$2',
+            $content
+        );
+
+        return $content;
+    }
 
     /**
      * Resolve the correct category term ID for the current language.

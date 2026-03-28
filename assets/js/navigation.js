@@ -727,6 +727,21 @@ class Navigation {
         this.cardOpened  = true;
         this.targetSlide = divId;
 
+        // Restore any video sources that were deferred by lazy_load_post_videos()
+        // in PHP. src is stored in data-src at page-render time so the browser's
+        // preload scanner never downloads the file. We restore it now that the
+        // user has explicitly opened this slide's card.
+        slide.querySelectorAll( 'video[data-src]' ).forEach( video => {
+            video.src = video.dataset.src;
+            delete video.dataset.src;
+        } );
+        slide.querySelectorAll( 'source[data-src]' ).forEach( source => {
+            source.src = source.dataset.src;
+            delete source.dataset.src;
+            const video = source.closest( 'video' );
+            if ( video ) video.load();
+        } );
+
         // Record current slider position and start monitoring for drift.
         // Any unintended scroll of #gracia-slides (e.g. iOS Safari rubber-band)
         // is caught by the scroll event and snapped back immediately, keeping
