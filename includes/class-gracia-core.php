@@ -37,6 +37,9 @@ class Gracia_Core {
     private function register_modules(): void {
         require_once GRACIA_PLUGIN_DIR . 'includes/class-gracia-homepage.php';
         ( new Gracia_Homepage() )->register();
+
+        require_once GRACIA_PLUGIN_DIR . 'includes/class-gracia-gallery.php';
+        ( new Gracia_Gallery() )->register();
     }
 
     private function enqueue_assets(): void {

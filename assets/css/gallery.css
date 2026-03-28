@@ -1,0 +1,345 @@
+/* ==========================================================================
+   Gallery — 4-tile video grid
+   Loaded only on pages containing [gracia_homepage] (via class-gracia-gallery.php).
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Gallery slide — full-width card override
+   The default .gracia-card has max-width:968px and padding on sides.
+   For the gallery we expand to full viewport width so tiles fill the screen.
+   -------------------------------------------------------------------------- */
+
+/* Gallery card is self-contained on desktop — 2×2 grid fits the viewport */
+@media screen and ( min-width: 601px ) {
+    #gallery.gracia-slide.opened .gracia-slide-scroll,
+    #galeria.gracia-slide.opened .gracia-slide-scroll {
+        overflow: hidden !important;
+    }
+}
+
+#gallery.gracia-slide.opened .gracia-card,
+#galeria.gracia-slide.opened .gracia-card {
+    max-width: 86%;
+    width: 86%;
+}
+
+#gallery.gracia-slide.opened .gracia-card-content,
+#galeria.gracia-slide.opened .gracia-card-content {
+    padding: 70px 0 60px;
+}
+
+/* --------------------------------------------------------------------------
+   Container — 2x2 grid
+   -------------------------------------------------------------------------- */
+
+.gallery-tiles {
+    display: grid;
+    grid-template-columns: repeat( 2, 1fr );
+    gap: 8px;
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+}
+
+.gallery-tiles.is-visible {
+    opacity: 1;
+    /* Instant show: staggered tile animations provide the entrance */
+    transition: none;
+}
+
+/* Closed: tiles reset so reopen replays the staggered entrance */
+.gallery-tiles:not( .is-visible ) .gallery-tile {
+    opacity: 0;
+    transform: translateY( 10px );
+    animation: none;
+}
+
+/* Open: fade each tile in sequence (order follows DOM: row-major in 2x2 grid).
+   fill-mode both: hold "from" during delay, hold "to" after animation ends. */
+.gallery-tiles.is-visible .gallery-tile {
+    animation: gallery-tile-enter 0.55s ease both;
+}
+
+.gallery-tiles.is-visible .gallery-tile:nth-child( 1 ) {
+    animation-delay: 0.05s;
+}
+
+.gallery-tiles.is-visible .gallery-tile:nth-child( 2 ) {
+    animation-delay: 0.14s;
+}
+
+.gallery-tiles.is-visible .gallery-tile:nth-child( 3 ) {
+    animation-delay: 0.23s;
+}
+
+.gallery-tiles.is-visible .gallery-tile:nth-child( 4 ) {
+    animation-delay: 0.32s;
+}
+
+.gallery-tiles.is-visible .gallery-tile:nth-child( n + 5 ) {
+    animation-delay: 0.41s;
+}
+
+@keyframes gallery-tile-enter {
+    from {
+        opacity: 0;
+        transform: translateY( 12px );
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY( 0 );
+    }
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+    .gallery-tiles:not( .is-visible ) .gallery-tile {
+        transform: none;
+    }
+
+    .gallery-tiles.is-visible .gallery-tile {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media screen and ( min-width: 601px ) {
+    .gallery-tiles {
+        margin-top: 23px;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Tile
+   -------------------------------------------------------------------------- */
+
+.gallery-tile {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    background-color: #111;
+    border-radius: 0;
+    box-shadow: 0 8px 32px rgba( 0, 0, 0, 0.55 );
+    cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Tile label (category name — top left)
+   -------------------------------------------------------------------------- */
+
+.gallery-tile-label {
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    left: 0;
+    margin: 10px 14px;
+    padding: 0;
+    color: #f5f5f5;
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1;
+    text-shadow: 0 0 60px rgba( 0, 0, 0, 1 ), 0 0 60px rgba( 0, 0, 0, 0.8 );
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+/* --------------------------------------------------------------------------
+   Poster image — injected by JS immediately when card opens.
+   Fades in once loaded; covers the shimmer so there is no blank flash.
+   -------------------------------------------------------------------------- */
+
+.gallery-poster {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+}
+
+.gallery-tile.has-poster .gallery-poster {
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Video wrap — injected by JS only when user clicks to play.
+   Sits above the poster so poster remains visible as fallback.
+   -------------------------------------------------------------------------- */
+
+.gallery-video-wrap {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.gallery-video-wrap.is-loaded {
+    opacity: 1;
+}
+
+.gallery-video-wrap video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    object-fit: cover;
+}
+
+/* --------------------------------------------------------------------------
+   Loading state — shimmer shown while poster image is fetching
+   -------------------------------------------------------------------------- */
+
+.gallery-tile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient( 90deg, #111 25%, #1a1a1a 50%, #111 75% );
+    background-size: 200% 100%;
+    animation: gallery-shimmer 1.8s infinite linear;
+}
+
+.gallery-tile.has-poster::before {
+    display: none;
+}
+
+@keyframes gallery-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Play / pause button — bottom-left corner, camp.mx style
+   Always last child in DOM so it paints above video wrap naturally.
+   -------------------------------------------------------------------------- */
+
+.gallery-play-btn {
+    position: absolute;
+    z-index: 10;
+    left: -10px;
+    bottom: -7px;
+    width: 90px;
+    height: 90px;
+    cursor: pointer;
+    pointer-events: auto;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.gallery-play-btn img {
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: drop-shadow( 0 0 10px rgba( 0, 0, 0, 1 ) )
+            drop-shadow( 0 0 20px rgba( 0, 0, 0, 0.7 ) );
+}
+
+/* Hide while playing; faintly restore on hover so user can see it's clickable */
+.gallery-tile.is-playing .gallery-play-btn {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.gallery-tile.is-playing:hover .gallery-play-btn {
+    opacity: 0.6;
+    pointer-events: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Navigation arrows — camp.mx SVG icons, shown on tile hover
+   -------------------------------------------------------------------------- */
+
+.gallery-prev,
+.gallery-next {
+    position: absolute;
+    z-index: 20;
+    top: 50%;
+    transform: translateY( -50% );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 70px;
+    padding: 0 15px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    background: none;
+    border: none;
+}
+
+.gallery-prev {
+    left: 0;
+}
+
+.gallery-next {
+    right: 0;
+}
+
+.gallery-tile:hover .gallery-prev,
+.gallery-tile:hover .gallery-next {
+    opacity: 1;
+}
+
+.gallery-prev.is-hidden,
+.gallery-next.is-hidden {
+    display: none;
+}
+
+/* Camp.mx SVG arrow icons are injected by JS; size them here */
+.gallery-prev svg,
+.gallery-next svg {
+    width: 17px;
+    height: 41.5px;
+    filter: drop-shadow( 0 0 6px rgba( 0, 0, 0, 0.9 ) );
+}
+
+/* --------------------------------------------------------------------------
+   Mobile — single column below 600px
+   -------------------------------------------------------------------------- */
+
+@media screen and ( max-width: 600px ) {
+    #gallery.gracia-slide.opened .gracia-card-content,
+    #galeria.gracia-slide.opened .gracia-card-content {
+        padding: 60px 0 40px;
+    }
+
+    .gallery-tiles {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .gallery-tile-label {
+        font-size: 18px;
+        margin: 6px 10px;
+    }
+
+    .gallery-prev,
+    .gallery-next {
+        opacity: 1;
+        width: 40px;
+        height: 56px;
+        padding: 0 12px;
+    }
+
+    .gallery-prev svg,
+    .gallery-next svg {
+        width: 13px;
+        height: 32px;
+    }
+
+    .gallery-play-btn {
+        width: 50px;
+        height: 50px;
+        left: 0;
+        bottom: 0;
+    }
+}

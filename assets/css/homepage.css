@@ -290,6 +290,11 @@
     z-index: 20;
     pointer-events: none;
     overflow: hidden;
+    scrollbar-width: none; /* Firefox */
+}
+
+.gracia-slide-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge */
 }
 
 .gracia-slide.opened .gracia-slide-scroll {
@@ -511,6 +516,32 @@ body.card-open #gracia-slides {
     text-align: center;
     max-width: 85vw;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* -----------------------------------------------------------------------------
+   6b. Reading progress bar
+   Thin line at top of viewport, visible only while the card content is
+   actively scrolled; fades out 1s after scrolling stops.
+   ----------------------------------------------------------------------------- */
+
+.gracia-scroll-progress {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 2px;
+    height: 0%;
+    background: rgba( 245, 245, 245, 0.55 );
+    z-index: 99998;
+    opacity: 0;
+    pointer-events: none;
+    /* Height is updated by JS; only opacity transitions so there is no lag
+       in the bar position when the user is actively scrolling. */
+    transition: opacity 0.4s ease;
+}
+
+.gracia-scroll-progress.is-scrolling {
+    opacity: 1;
+    transition: opacity 0.1s ease;
 }
 
 /* -----------------------------------------------------------------------------

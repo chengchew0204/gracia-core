@@ -63,6 +63,13 @@ class Navigation {
         // Used by _boundCorrectSliderScroll to snap back if the slider drifts.
         this._lockedSliderScrollTop = 0;
 
+        // Reading progress bar
+        this._scrollProgressBar   = null;
+        this._scrollProgressEl    = null;
+        this._scrollProgressTimer = null;
+        this._boundCardScroll     = this._onCardScroll.bind( this );
+        this._initScrollProgress();
+
         // Detects and immediately corrects any drift of #gracia-slides while a
         // card is open. Replaces document-level event blocking: instead of
         // preventing scroll (which stops users from self-healing a broken layout
@@ -756,6 +763,14 @@ class Navigation {
         this.cancelPendingHints();
         this.hideCurrentCursorHint();
 
+        // Gallery/galería is non-scrollable on desktop (overflow:hidden via CSS).
+        // On mobile the single-column grid overflows, so scrolling is allowed there.
+        const isGallery    = divId === 'gallery' || divId === 'galeria';
+        const isMobileView = window.innerWidth <= 600;
+        if ( ! isGallery || isMobileView ) {
+            this._attachScrollProgress( slide );
+        }
+
         this.schedulePostContentHint( slide );
     }
 
@@ -770,6 +785,7 @@ class Navigation {
 
         this.cancelPendingHints();
         this.hideAllActiveTextHints();
+        this._detachScrollProgress();
 
         /*
          * Two-phase close:
@@ -808,6 +824,52 @@ class Navigation {
             this._kbScrollRaf = null;
         }
         this._kbScrollEl = null;
+    }
+
+    // =========================================================================
+    // Reading progress bar
+    // =========================================================================
+
+    _initScrollProgress() {
+        const bar = document.createElement( 'div' );
+        bar.className = 'gracia-scroll-progress';
+        bar.setAttribute( 'aria-hidden', 'true' );
+        document.body.appendChild( bar );
+        this._scrollProgressBar = bar;
+    }
+
+    _attachScrollProgress( slide ) {
+        const scrollEl = slide.querySelector( '.gracia-slide-scroll' );
+        if ( ! scrollEl ) return;
+        this._scrollProgressEl = scrollEl;
+        scrollEl.addEventListener( 'scroll', this._boundCardScroll, { passive: true } );
+    }
+
+    _detachScrollProgress() {
+        if ( this._scrollProgressEl ) {
+            this._scrollProgressEl.removeEventListener( 'scroll', this._boundCardScroll );
+            this._scrollProgressEl = null;
+        }
+        if ( this._scrollProgressBar ) {
+            clearTimeout( this._scrollProgressTimer );
+            this._scrollProgressBar.classList.remove( 'is-scrolling' );
+            this._scrollProgressBar.style.height = '0%';
+        }
+    }
+
+    _onCardScroll( e ) {
+        const el  = e.currentTarget;
+        const max = el.scrollHeight - el.clientHeight;
+        if ( max <= 0 ) return;
+
+        const pct = Math.min( ( el.scrollTop / max ) * 100, 100 );
+        this._scrollProgressBar.style.height = pct + '%';
+        this._scrollProgressBar.classList.add( 'is-scrolling' );
+
+        clearTimeout( this._scrollProgressTimer );
+        this._scrollProgressTimer = setTimeout( () => {
+            this._scrollProgressBar.classList.remove( 'is-scrolling' );
+        }, 1000 );
     }
 
     // =========================================================================
