@@ -14,6 +14,9 @@ defined( 'ABSPATH' ) || exit;
 
 class Gracia_Homepage {
 
+    /** Cached logo URL — resolved once, reused for preload and img src. */
+    private string $logo_src = '';
+
     public function register(): void {
         add_shortcode( 'gracia_homepage', [ $this, 'render_shortcode' ] );
         add_action( 'wp', [ $this, 'maybe_add_homepage_body_class' ] );
@@ -30,6 +33,7 @@ class Gracia_Homepage {
             add_filter( 'body_class', [ $this, 'add_homepage_body_class' ] );
             add_action( 'wp_head', [ $this, 'inject_critical_loading_css' ], 0 );
             add_action( 'wp_head', [ $this, 'preload_fonts' ], 1 );
+            add_action( 'wp_head', [ $this, 'preload_logo' ], 1 );
         }
     }
 
@@ -82,6 +86,54 @@ class Gracia_Homepage {
             $url = esc_url( GRACIA_PLUGIN_URL . 'assets/fonts/' . $font_file );
             echo '<link rel="preload" href="' . $url . '" as="font" type="font/woff2" crossorigin="anonymous">' . "\n";
         }
+    }
+
+    /**
+     * Resolve and cache the logo URL from the Media Library.
+     *
+     * Queries for the most recent attachment whose filename contains "logo"
+     * and stores the result in $this->logo_src so the value is computed only
+     * once, shared between preload_logo() (wp_head) and render_site_logo()
+     * (shortcode body output).
+     */
+    private function get_logo_src(): string {
+        if ( $this->logo_src !== '' ) {
+            return $this->logo_src;
+        }
+
+        $results = get_posts( [
+            'post_type'      => 'attachment',
+            'post_status'    => 'inherit',
+            'posts_per_page' => 1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => [ [
+                'key'     => '_wp_attached_file',
+                'value'   => 'logo',
+                'compare' => 'LIKE',
+            ] ],
+        ] );
+
+        if ( ! empty( $results ) ) {
+            $this->logo_src = (string) wp_get_attachment_url( $results[0]->ID );
+        }
+
+        return $this->logo_src;
+    }
+
+    /**
+     * Emit a <link rel="preload" as="image"> for the site logo in <head>.
+     *
+     * Runs at wp_head priority 1 — alongside font preloads — so the browser
+     * can fetch the logo in parallel with stylesheets instead of waiting until
+     * the <img> tag in the page body is parsed.
+     */
+    public function preload_logo(): void {
+        $src = $this->get_logo_src();
+        if ( $src === '' ) {
+            return;
+        }
+        echo '<link rel="preload" href="' . esc_url( $src ) . '" as="image">' . "\n";
     }
 
     /**
@@ -339,33 +391,21 @@ class Gracia_Homepage {
     /**
      * Render the site logo as a fixed top-right image inside the slider.
      *
-     * Finds the most recent Media Library attachment whose filename contains "logo".
+     * The logo URL is resolved via get_logo_src() which is already called
+     * (and cached) by preload_logo() at wp_head priority 1, so this method
+     * never issues a second database query.
      */
     private function render_site_logo(): void {
-        $site_url = esc_url( home_url( '/' ) );
-        $logo_alt = esc_attr( get_bloginfo( 'name' ) );
-
-        $results = get_posts( [
-            'post_type'      => 'attachment',
-            'post_status'    => 'inherit',
-            'posts_per_page' => 1,
-            'orderby'        => 'date',
-            'order'          => 'DESC',
-            'meta_query'     => [ [
-                'key'     => '_wp_attached_file',
-                'value'   => 'logo',
-                'compare' => 'LIKE',
-            ] ],
-        ] );
-
-        if ( empty( $results ) ) {
+        $logo_src = $this->get_logo_src();
+        if ( $logo_src === '' ) {
             return;
         }
 
-        $logo_src = wp_get_attachment_url( $results[0]->ID );
+        $site_url = esc_url( home_url( '/' ) );
+        $logo_alt = esc_attr( get_bloginfo( 'name' ) );
         ?>
         <a href="<?php echo $site_url; ?>" class="gracia-site-logo" aria-label="<?php echo $logo_alt; ?>">
-            <img src="<?php echo esc_url( $logo_src ); ?>" alt="<?php echo $logo_alt; ?>">
+            <img src="<?php echo esc_url( $logo_src ); ?>" alt="<?php echo $logo_alt; ?>" fetchpriority="high">
         </a>
         <?php
     }
