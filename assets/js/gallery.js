@@ -133,6 +133,10 @@
             const io = new IntersectionObserver( ( entries ) => {
                 if ( entries[ 0 ].isIntersecting ) {
                     this._preloadAllPosters();
+                    /* Preload the first video of every tile while the slide is
+                       visible but before the card opens, so clicking plays
+                       instantly without waiting for any buffering. */
+                    this._tiles.forEach( ( _, i ) => this._eagerPreloadSlide( i, 0 ) );
                     io.disconnect();
                 }
             }, { threshold: 0.3 } );
@@ -268,10 +272,6 @@
 
             if ( state.videoCache.has( index ) ) {
                 video = state.videoCache.get( index );
-                /* Move out of preload bin if it was buffered there */
-                if ( video.parentNode === this._preloadBin ) {
-                    this._preloadBin.removeChild( video );
-                }
             } else {
                 video = this._createVideoEl( state.slides[ index ] );
                 state.videoCache.set( index, video );
@@ -279,6 +279,8 @@
 
             const wrap     = document.createElement( 'div' );
             wrap.className = 'gallery-video-wrap';
+            /* appendChild moves the element in one DOM operation — no detach step.
+               Detaching first (removeChild) can cause browsers to abort buffering. */
             wrap.appendChild( video );
 
             /* Insert before play button so play button stays on top */
@@ -291,9 +293,18 @@
             requestAnimationFrame( () => wrap.classList.add( 'is-loaded' ) );
 
             this._pauseAllExcept( tile );
-            video.currentTime = 0;
-            video.play().catch( () => {} );
+            /* Only seek to start if the video has been played before.
+               Setting currentTime on a freshly preloaded video (currentTime === 0)
+               triggers a seek that aborts the buffered data and causes a reload delay. */
+            if ( video.currentTime > 0 ) {
+                video.currentTime = 0;
+            }
+            /* Add is-playing immediately so UI feedback is instant.
+               Remove it only if play() is actually rejected (e.g. autoplay blocked). */
             tile.classList.add( 'is-playing' );
+            video.play().catch( () => {
+                tile.classList.remove( 'is-playing' );
+            } );
 
             /* Once this video is playing, buffer the prev/next slides in this tile */
             this._preloadAdjacentSlides( tileIndex );
@@ -425,12 +436,24 @@
         /* Navigation — prev / next (autoplays, uses both caches on revisit)   */
         /* ------------------------------------------------------------------ */
 
+        /* Bind a tap/click handler for both touch and pointer devices.
+         *
+         * touch-action:manipulation on the elements (gallery.css) tells the
+         * browser to fire click immediately on first tap — no 300ms delay,
+         * no first-tap-hover-only behaviour on iOS. A plain click listener is
+         * therefore sufficient and avoids the fragility of manual touchend
+         * handling inside a scrollable container.
+         */
+        _bindTap( element, handler ) {
+            element.addEventListener( 'click', ( e ) => {
+                e.stopPropagation();
+                handler();
+            } );
+        }
+
         _setupTileClicks() {
             this._tiles.forEach( ( tile, tileIndex ) => {
-                tile.addEventListener( 'click', ( e ) => {
-                    e.stopPropagation();
-                    this._handleTileClick( tileIndex );
-                } );
+                this._bindTap( tile, () => this._handleTileClick( tileIndex ) );
             } );
         }
 
@@ -440,17 +463,11 @@
                 const nextBtn = tile.querySelector( '.gallery-next' );
 
                 if ( prevBtn ) {
-                    prevBtn.addEventListener( 'click', ( e ) => {
-                        e.stopPropagation();
-                        this._navigate( tileIndex, -1 );
-                    } );
+                    this._bindTap( prevBtn, () => this._navigate( tileIndex, -1 ) );
                 }
 
                 if ( nextBtn ) {
-                    nextBtn.addEventListener( 'click', ( e ) => {
-                        e.stopPropagation();
-                        this._navigate( tileIndex, 1 );
-                    } );
+                    this._bindTap( nextBtn, () => this._navigate( tileIndex, 1 ) );
                 }
             } );
         }

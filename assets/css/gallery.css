@@ -122,6 +122,8 @@
     border-radius: 0;
     box-shadow: 0 8px 32px rgba( 0, 0, 0, 0.55 );
     cursor: pointer;
+    /* Fire click immediately on first tap (no 300ms delay, no hover-first) */
+    touch-action: manipulation;
 }
 
 /* --------------------------------------------------------------------------
@@ -232,6 +234,7 @@
     pointer-events: auto;
     opacity: 1;
     transition: opacity 0.2s ease;
+    touch-action: manipulation;
 }
 
 .gallery-play-btn img {
@@ -274,6 +277,7 @@
     transition: opacity 0.2s ease;
     background: none;
     border: none;
+    touch-action: manipulation;
 }
 
 .gallery-prev {
@@ -309,7 +313,7 @@
 @media screen and ( max-width: 600px ) {
     #gallery.gracia-slide.opened .gracia-card-content,
     #galeria.gracia-slide.opened .gracia-card-content {
-        padding: 60px 0 40px;
+        padding: 45px 0 40px;
     }
 
     .gallery-tiles {

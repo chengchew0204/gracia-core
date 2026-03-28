@@ -32,7 +32,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.95);
     color: #111;
     font-family: 'ClearSans', Helvetica, sans-serif;
     font-size: 15px;
@@ -101,7 +101,11 @@
 }
 
 #gracia-hover-panel p {
-    margin: 0 0 0 0;
+    margin: 6px 0;
+}
+
+#gracia-hover-panel p:first-child {
+    margin-top: 0;
 }
 
 #gracia-hover-panel p:last-child {
@@ -109,9 +113,16 @@
 }
 
 #gracia-hover-panel a {
-    color: #0033ff;
+    color: #6b7280;
     text-decoration: underline;
     font-weight: 500;
+}
+
+/* An <a> wrapping only an <img> must be block so the inline
+   descender gap does not push the image away from surrounding content. */
+#gracia-hover-panel a:has(> img) {
+    display: block;
+    line-height: 0;
 }
 
 #gracia-hover-panel hr {
@@ -125,6 +136,15 @@
 #gracia-hover-panel center {
     display: block;
     text-align: center;
+    margin: 6px 0;
+}
+
+#gracia-hover-panel center:first-child {
+    margin-top: 0;
+}
+
+#gracia-hover-panel center:last-child {
+    margin-bottom: 0;
 }
 
 /* Override the * rule above for bold elements */
