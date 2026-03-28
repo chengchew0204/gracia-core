@@ -200,7 +200,10 @@ class PostHoverBox {
 
         this.activeTrigger = trigger;
 
+        // Keep hidden while measuring — prevents any flash before final position
+        // is known.
         this.panel.classList.remove( 'is-visible' );
+        this.panel.setAttribute( 'aria-hidden', 'true' );
         this.panel.style.visibility = 'hidden';
         this.panel.style.display    = 'block';
         this.panel.style.opacity    = '0';
@@ -212,31 +215,37 @@ class PostHoverBox {
             .filter( img => ! img.complete );
 
         if ( pending.length === 0 ) {
-            // All content ready — use full smart positioning.
+            // All content ready — position once and reveal.
             this._position( trigger );
+            this._revealPanel();
         } else {
-            // Images still loading: show below the trigger so the panel can
-            // only grow downward (away from the keyword) as images load.
-            // The panel is revealed immediately so the user gets visual
-            // feedback right away and the scroll lock feels responsive.
-            this._positionBelow( trigger );
+            // Images still loading: stay hidden until every image has settled
+            // (load or error) so the panel appears at its final position without
+            // flashing from below to above.
+            let remaining = pending.length;
+            const onSettle = () => {
+                if ( this.activeTrigger !== trigger ) return;
+                remaining--;
+                if ( remaining > 0 ) return;
+                this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
+                this._position( trigger );
+                this._revealPanel();
+            };
 
-            // After each image loads, reposition with the correct final height.
             pending.forEach( img => {
-                img.addEventListener( 'load', () => {
-                    if ( this.activeTrigger !== trigger ) return;
-                    this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
-                    this._position( trigger );
-                }, { once: true } );
+                img.addEventListener( 'load',  onSettle, { once: true } );
+                img.addEventListener( 'error', onSettle, { once: true } );
             } );
         }
 
+        this._lockScroll();
+    }
+
+    _revealPanel() {
         this.panel.style.visibility = '';
         this.panel.style.opacity    = '';
         this.panel.classList.add( 'is-visible' );
         this.panel.setAttribute( 'aria-hidden', 'false' );
-
-        this._lockScroll();
     }
 
     _hide() {
@@ -267,17 +276,26 @@ class PostHoverBox {
 
     _position( trigger ) {
         const triggerRect = trigger.getBoundingClientRect();
-        const panelRect   = this.panel.getBoundingClientRect();
         const vw  = window.innerWidth;
         const vh  = window.innerHeight;
         const gap = this.GAP;
 
-        const panelW = panelRect.width;
-        const panelH = panelRect.height;
-
         // Reserved zones: header at top (burger + logo), safe margin at bottom.
         const TOP_SAFE    = 100;
         const BOTTOM_SAFE = 15;
+
+        // Cap the panel to the actual safe area before measuring its height.
+        // This prevents the two vertical clamps below from conflicting on short
+        // viewports (mobile), which would push the panel above the top boundary.
+        const maxAllowedH = vh - TOP_SAFE - BOTTOM_SAFE - ( 2 * gap );
+        this.panel.style.maxHeight = `${ Math.max( 80, maxAllowedH ) }px`;
+
+        // Force reflow so getBoundingClientRect reflects the capped height.
+        this.panel.offsetHeight; // eslint-disable-line no-unused-expressions
+
+        const panelRect = this.panel.getBoundingClientRect();
+        const panelW = panelRect.width;
+        const panelH = panelRect.height;
 
         // --- Horizontal: center on trigger, clamp to viewport ---
         let left = triggerRect.left + ( triggerRect.width / 2 ) - ( panelW / 2 );
@@ -294,7 +312,7 @@ class PostHoverBox {
         } else if ( spaceBelow >= panelH + gap ) {
             top = triggerRect.bottom + gap;
         } else {
-            // Neither side fits cleanly — use whichever has more room
+            // Neither side fits cleanly — use whichever has more room.
             if ( spaceAbove >= spaceBelow ) {
                 top = triggerRect.top - panelH - gap;
             } else {
@@ -302,32 +320,13 @@ class PostHoverBox {
             }
         }
 
-        // Hard clamps: never overlap header or bottom safe zone
+        // Top clamp wins — never overlap the header.
         top = Math.max( TOP_SAFE + gap, top );
+        // Bottom clamp — applied after top is secured.
         top = Math.min( top, vh - panelH - BOTTOM_SAFE );
-
-        this.panel.style.left = `${ Math.round( left ) }px`;
-        this.panel.style.top  = `${ Math.round( top ) }px`;
-    }
-
-    // Always places the panel below the trigger. Used when images are still
-    // loading so the panel can only grow downward (never over the keyword).
-    _positionBelow( trigger ) {
-        const triggerRect = trigger.getBoundingClientRect();
-        const panelRect   = this.panel.getBoundingClientRect();
-        const vw  = window.innerWidth;
-        const vh  = window.innerHeight;
-        const gap = this.GAP;
-
-        const TOP_SAFE    = 80;
-        const BOTTOM_SAFE = 15;
-
-        let left = triggerRect.left + ( triggerRect.width / 2 ) - ( panelRect.width / 2 );
-        left = Math.max( gap, Math.min( left, vw - panelRect.width - gap ) );
-
-        let top = triggerRect.bottom + gap;
+        // Re-assert top clamp: because panelH <= maxAllowedH, this is always
+        // satisfiable and ensures the header is never covered.
         top = Math.max( TOP_SAFE + gap, top );
-        top = Math.min( top, vh - panelRect.height - BOTTOM_SAFE );
 
         this.panel.style.left = `${ Math.round( left ) }px`;
         this.panel.style.top  = `${ Math.round( top ) }px`;

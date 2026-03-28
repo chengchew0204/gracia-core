@@ -28,7 +28,7 @@
     max-width: min(340px, calc(100vw - 30px));
     height: auto;
     min-height: 0;
-    max-height: min(520px, 75vh);
+    max-height: min(780px, 88vh);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
@@ -139,4 +139,21 @@
 
 #gracia-hover-panel u {
     text-decoration: underline;
+}
+
+/* =============================================================================
+   4. Link-preview overrides — tighter spacing inside the panel
+   ============================================================================= */
+
+/* glp-link (domain-only pill) sits right below an image; kill excess gap */
+#gracia-hover-panel .glp-link {
+    padding: 2px 8px;
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+}
+
+/* glp-card (full card) shouldn't have the large post-body margin */
+#gracia-hover-panel .glp-card {
+    margin: 4px 0;
+    max-width: 100%;
 }

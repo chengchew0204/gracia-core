@@ -52,6 +52,13 @@ class Navigation {
 
         this.lang = this.detectLanguage();
 
+        // Keyboard card-scroll state — accumulates the target position so
+        // rapid keypresses glide to a single destination instead of spawning
+        // competing browser-native smooth-scroll animations.
+        this._kbScrollRaf    = null;
+        this._kbScrollTarget = 0;
+        this._kbScrollEl     = null;
+
         // Scroll position of #gracia-slides at the moment a card opens.
         // Used by _boundCorrectSliderScroll to snap back if the slider drifts.
         this._lockedSliderScrollTop = 0;
@@ -60,8 +67,17 @@ class Navigation {
         // card is open. Replaces document-level event blocking: instead of
         // preventing scroll (which stops users from self-healing a broken layout
         // on iOS Safari), we let the scroll happen and snap it back instantly.
+        //
+        // Exception: while isScrolling is true a programmatic slide transition
+        // is in progress (triggered by arrow keys or gotoSlide). In that case we
+        // track the moving position instead of fighting it, so the animation
+        // completes normally and the lock lands at the final slide position.
         this._boundCorrectSliderScroll = () => {
             if ( ! this.cardOpened || ! this.slider ) return;
+            if ( this.isScrolling ) {
+                this._lockedSliderScrollTop = this.slider.scrollTop;
+                return;
+            }
             if ( this.slider.scrollTop !== this._lockedSliderScrollTop ) {
                 this.slider.scrollTop = this._lockedSliderScrollTop;
             }
@@ -785,6 +801,56 @@ class Navigation {
         if ( !anyClosing ) {
             this.body.classList.remove( 'card-open' );
         }
+
+        // Cancel any in-progress keyboard card-scroll animation.
+        if ( this._kbScrollRaf !== null ) {
+            cancelAnimationFrame( this._kbScrollRaf );
+            this._kbScrollRaf = null;
+        }
+        this._kbScrollEl = null;
+    }
+
+    // =========================================================================
+    // Keyboard card scroll
+    // =========================================================================
+
+    /**
+     * Smoothly scroll `container` by `delta` pixels using a single rAF ease-out
+     * loop. Rapid successive calls accumulate into one target position so the
+     * animation stays fluid instead of spawning competing browser scroll jobs.
+     *
+     * @param {Element} container  The scrollable element (.gracia-slide-scroll).
+     * @param {number}  delta      Pixels to add (positive = down, negative = up).
+     */
+    _scrollCardTo( container, delta ) {
+        const maxScroll = container.scrollHeight - container.clientHeight;
+
+        // If the container changed (different card opened), reset.
+        if ( this._kbScrollEl !== container ) {
+            this._kbScrollEl     = container;
+            this._kbScrollTarget = container.scrollTop;
+        }
+
+        this._kbScrollTarget = Math.max( 0, Math.min( maxScroll, this._kbScrollTarget + delta ) );
+
+        // One loop already running — just updating the target is enough.
+        if ( this._kbScrollRaf !== null ) return;
+
+        const animate = () => {
+            const distance = this._kbScrollTarget - container.scrollTop;
+
+            if ( Math.abs( distance ) < 0.5 ) {
+                container.scrollTop  = this._kbScrollTarget;
+                this._kbScrollRaf    = null;
+                return;
+            }
+
+            // Ease-out: close 18 % of the remaining gap each frame (~60 fps).
+            container.scrollTop += distance * 0.18;
+            this._kbScrollRaf    = requestAnimationFrame( animate );
+        };
+
+        this._kbScrollRaf = requestAnimationFrame( animate );
     }
 
     // =========================================================================
@@ -982,8 +1048,22 @@ class Navigation {
                 return;
             }
 
-            // --- Card open: no arrow key handling ---
-            if ( this.cardOpened ) return;
+            // --- Card open: Up / Down scroll the post content ---
+            if ( this.cardOpened ) {
+                if ( e.key === 'ArrowDown' || e.key === 'ArrowUp' ) {
+                    const openedSlide = this.slider
+                        ? this.slider.querySelector( '.gracia-slide.opened' )
+                        : null;
+                    const scrollContainer = openedSlide
+                        ? openedSlide.querySelector( '.gracia-slide-scroll' )
+                        : null;
+                    if ( scrollContainer ) {
+                        e.preventDefault();
+                        this._scrollCardTo( scrollContainer, e.key === 'ArrowDown' ? 120 : -120 );
+                    }
+                }
+                return;
+            }
 
             // --- Menu closed: Right opens the menu; Up / Down scroll slides ---
             if ( e.key === 'ArrowRight' ) {
