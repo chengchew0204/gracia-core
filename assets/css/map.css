@@ -1,0 +1,123 @@
+/*
+ * Interactive Map — gracia.la
+ *
+ * All CSS specific to the map/mapa slide and the interactive map widget.
+ * Loaded on-demand by class-gracia-map.php when [gracia_map] shortcode renders.
+ *
+ * Sections:
+ *   1. Slide container overrides  — break out of standard card constraints
+ *   2. Pointer-events chain       — ensure the full click hierarchy is enabled
+ *   3. Close zone overrides       — disable gracia-tap zones (map has its own exits)
+ *   4. Map widget resets          — fix any body/page-level styles that bleed in
+ *
+ * @see obsidian/01-features/map.md
+ * @see obsidian/03-decisions/ADR-006-map-single-source-of-truth.md
+ */
+
+
+/* =============================================================================
+   1. Slide container overrides
+   The standard card has max-width: 968px and padding. The interactive map
+   needs to fill the full viewport — these rules remove all constraints.
+   ============================================================================= */
+
+/* Scroll container: no overflow-y scroll, no padding */
+.gracia-slide#mapa .gracia-slide-scroll,
+.gracia-slide#map .gracia-slide-scroll {
+    overflow: hidden !important;
+    padding: 0 !important;
+}
+
+/* Card wrapper: remove max-width and centering margin */
+.gracia-slide#mapa .gracia-card,
+.gracia-slide#map .gracia-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+}
+
+/* Card content: full-viewport height, relative positioning so
+   .interactive-map { position: absolute } anchors to this element */
+.gracia-slide#mapa .gracia-card-content,
+.gracia-slide#map .gracia-card-content {
+    padding: 0 !important;
+    position: relative !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+}
+
+/* Disable the logo-avoidance float — the map has no text content */
+.gracia-slide#mapa .gracia-card-content::before,
+.gracia-slide#map .gracia-card-content::before {
+    display: none !important;
+}
+
+
+/* =============================================================================
+   2. Pointer-events chain
+   Explicitly enable pointer-events on every ancestor from the slide down to
+   the interactive detail zones. This overrides any inherited none values.
+   ============================================================================= */
+
+.gracia-slide#mapa.opened,
+.gracia-slide#map.opened,
+.gracia-slide#mapa.opened .gracia-slide-scroll,
+.gracia-slide#map.opened .gracia-slide-scroll,
+.gracia-slide#mapa.opened .gracia-card,
+.gracia-slide#map.opened .gracia-card,
+.gracia-slide#mapa.opened .gracia-card-content,
+.gracia-slide#map.opened .gracia-card-content,
+.gracia-slide#mapa.opened .interactive-map,
+.gracia-slide#map.opened .interactive-map,
+.gracia-slide#mapa.opened .map-container,
+.gracia-slide#map.opened .map-container,
+.gracia-slide#mapa.opened .detail,
+.gracia-slide#map.opened .detail {
+    pointer-events: auto !important;
+}
+
+
+/* =============================================================================
+   3. Close zone overrides
+   Disable gracia.la's generic tap-top / tap-bottom close zones for the map.
+   The map widget has its own .mapExit zones (and closeMap() calls gracia-tap-top
+   programmatically, which still works even with display:none via element.click()).
+   ============================================================================= */
+
+.gracia-slide#mapa .gracia-tap-top,
+.gracia-slide#mapa .gracia-tap-bottom,
+.gracia-slide#mapa .gracia-tap-left,
+.gracia-slide#mapa .gracia-tap-right,
+.gracia-slide#map .gracia-tap-top,
+.gracia-slide#map .gracia-tap-bottom,
+.gracia-slide#map .gracia-tap-left,
+.gracia-slide#map .gracia-tap-right {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+
+/* =============================================================================
+   4. Map widget resets
+   The map HTML from camp.mx includes inline CSS that targets bare selectors
+   like `img` and `body.map`. Scope them to the map container to prevent
+   leaking into gracia.la's layout.
+   ============================================================================= */
+
+/* The map HTML has: img { max-height: 100%; max-width: none }
+   Scope this to the map container only so it does not affect other images. */
+.gracia-slide#mapa .map-container img,
+.gracia-slide#map .map-container img {
+    max-height: 100% !important;
+    max-width: none !important;
+    vertical-align: middle;
+}
+
+/* The interactive-map needs overflow-x for wide maps on small screens */
+.gracia-slide#mapa .interactive-map,
+.gracia-slide#map .interactive-map {
+    overflow-x: scroll;
+    overflow-y: hidden;
+}
