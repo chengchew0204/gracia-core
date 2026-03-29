@@ -63,6 +63,11 @@ class Navigation {
         // Used by _boundCorrectSliderScroll to snap back if the slider drifts.
         this._lockedSliderScrollTop = 0;
 
+        // Index of the slide currently filling the viewport. Updated on every
+        // scroll so the resize handler can re-snap to the correct slide.
+        this._activeSlideIndex = 0;
+        this._resizeTimer      = null;
+
         // Reading progress bar
         this._scrollProgressBar   = null;
         this._scrollProgressEl    = null;
@@ -177,6 +182,7 @@ class Navigation {
         this.applyMobileLabelOverrides();
         this.initPinchZoomPrevention();
         this.initBodyScrollPrevention();
+        this.initResizeHandler();
 
         // Handle direct URL visit after everything is ready
         const hash = window.location.hash.replace( '#', '' ).trim();
@@ -1274,6 +1280,34 @@ class Navigation {
         } );
     }
 
+    /**
+     * Re-evaluate mobile label overrides after a resize that may have crossed
+     * the 600 px breakpoint. Applies short labels on narrow viewports and
+     * restores the full title (from data-title) on wider ones.
+     */
+    _reapplyMobileLabelOverrides() {
+        const overrides = {
+            'organizadorxs': 'ORGANIZADXR',
+        };
+
+        this.slides.forEach( slide => {
+            const short = overrides[ slide.id ];
+            if ( ! short ) return;
+
+            const h2 = slide.querySelector( '.gracia-slide-label h2' );
+            if ( ! h2 ) return;
+
+            if ( window.innerWidth <= 600 ) {
+                h2.textContent = short;
+            } else {
+                const fullTitle = slide.dataset.title || '';
+                if ( fullTitle ) {
+                    h2.textContent = fullTitle;
+                }
+            }
+        } );
+    }
+
     isSafari() {
         const ua = navigator.userAgent.toLowerCase();
         const isOtherIos = /crios|fxios|edgios|opios/.test( ua );
@@ -1335,6 +1369,54 @@ class Navigation {
         // when touches start in the header, safe-area gutters, or other fixed
         // elements that sit outside the slider DOM subtree.
         document.addEventListener( 'touchmove', this._blockBodyTouch, { passive: false } );
+    }
+
+    // =========================================================================
+    // Resize handler — re-snap slider to the current slide after resize
+    // =========================================================================
+
+    /**
+     * Track the active slide index on every scroll so it is available when
+     * a resize fires. Then, after the resize settles (debounced 150 ms), snap
+     * the slider back to that slide using the new viewport dimensions.
+     *
+     * Without this, each slide resizes (100dvh updates) but scrollTop stays
+     * at the old pixel position, leaving the slider stuck between snap points
+     * and breaking all interaction until the page is refreshed.
+     */
+    initResizeHandler() {
+        // Keep _activeSlideIndex current during normal scrolling.
+        this.slider.addEventListener( 'scroll', () => {
+            if ( this.isScrolling ) return;
+            const h = window.innerHeight;
+            if ( h > 0 ) {
+                this._activeSlideIndex = Math.round( this.slider.scrollTop / h );
+            }
+        }, { passive: true } );
+
+        window.addEventListener( 'resize', () => {
+            clearTimeout( this._resizeTimer );
+            this._resizeTimer = setTimeout( () => this._onResize(), 150 );
+        } );
+    }
+
+    _onResize() {
+        if ( ! this.slider || this.slides.length === 0 ) return;
+
+        const clampedIndex  = Math.max( 0, Math.min( this._activeSlideIndex, this.slides.length - 1 ) );
+        const targetScrollTop = clampedIndex * window.innerHeight;
+
+        // Update the drift-correction lock before scrolling so
+        // _boundCorrectSliderScroll does not fight the position change.
+        if ( this.cardOpened ) {
+            this._lockedSliderScrollTop = targetScrollTop;
+        }
+
+        this.slider.scrollTo( { top: targetScrollTop, behavior: 'instant' } );
+
+        // Re-apply (or revert) mobile label overrides if the viewport crossed
+        // the 600 px breakpoint during the resize.
+        this._reapplyMobileLabelOverrides();
     }
 
     initMobileLandscapeWarning() {
