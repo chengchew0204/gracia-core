@@ -820,4 +820,3 @@ body.card-open #gracia-slides {
     .gracia-card-content::before {
         width: 76px; /* logo(80) + margin(20) - padding(24) = 76px */
     }
-}

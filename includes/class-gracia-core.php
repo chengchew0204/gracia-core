@@ -40,6 +40,10 @@ class Gracia_Core {
 
         require_once GRACIA_PLUGIN_DIR . 'includes/class-gracia-gallery.php';
         ( new Gracia_Gallery() )->register();
+
+        require_once GRACIA_PLUGIN_DIR . 'includes/class-gracia-map.php';
+        ( new Gracia_Map() )->register();
+
     }
 
     private function enqueue_assets(): void {
